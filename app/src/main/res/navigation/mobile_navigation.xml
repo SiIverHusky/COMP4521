@@ -3,23 +3,20 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/mobile_navigation"
-    app:startDestination="@+id/navigation_home">
-
-    <fragment
-        android:id="@+id/navigation_home"
-        android:name="edu.hkust.qust.ui.home.HomeFragment"
-        android:label="@string/title_home"
-        tools:layout="@layout/fragment_home" />
-
+    app:startDestination="@id/navigation_dashboard">
     <fragment
         android:id="@+id/navigation_dashboard"
         android:name="edu.hkust.qust.ui.dashboard.DashboardFragment"
         android:label="@string/title_dashboard"
         tools:layout="@layout/fragment_dashboard" />
-
     <fragment
-        android:id="@+id/navigation_notifications"
-        android:name="edu.hkust.qust.ui.notifications.NotificationsFragment"
-        android:label="@string/title_notifications"
-        tools:layout="@layout/fragment_notifications" />
+        android:id="@+id/navigation_newquest"
+        android:name="edu.hkust.qust.ui.newquest.NewQuestFragment"
+        android:label="fragment_newquest"
+        tools:layout="@layout/fragment_newquest" />
+    <fragment
+        android:id="@+id/navigation_questlog"
+        android:name="edu.hkust.qust.ui.questlog.QuestLogFragment"
+        android:label="QuestLog"
+        tools:layout="@layout/fragment_questlog" />
 </navigation>

@@ -23,11 +23,11 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,8 +45,11 @@ class Dashboard : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            Surface(color = MaterialTheme.colorScheme.background) {
-                UserProfileScreen()
+            Scaffold(
+                bottomBar = { BottomNavigationBar() }
+            ) { innerPadding ->
+                // Main content goes here
+                UserProfileScreen(Modifier.padding(innerPadding))
             }
         }
     }
@@ -55,11 +58,12 @@ class Dashboard : AppCompatActivity() {
 
 
 @Composable
-fun UserProfileScreen() {
+fun UserProfileScreen(modifier: Modifier) {
+    Spacer(Modifier.padding(vertical = 10.dp))
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(start = 25.dp, top = 40.dp, end = 25.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.Start
     ) {
@@ -74,90 +78,94 @@ fun UserProfileScreen() {
         }
 
         // Name and Class
-        Text("Name", fontSize = 24.sp)
-        Text("Class", fontSize = 18.sp)
+        Text("Name", Modifier.padding(top = 10.dp, bottom = 5.dp), fontSize = 24.sp)
+        Text("Class", Modifier.padding(top = 15.dp, bottom = 5.dp), fontSize = 18.sp)
 
         // Level Progress Bar
-        Text("Level 5")
-        LinearProgressIndicator(progress = 0.75f, modifier = Modifier.fillMaxWidth())
+        Text("Level 5", Modifier.padding(top = 15.dp, bottom = 3.dp))
+        LinearProgressIndicator(
+        progress = { 0.75f },
+        modifier = Modifier.fillMaxWidth().padding(top = 3.dp, bottom = 10.dp)
+        )
 
         // Other Progress Bars
         Text("20")
-        LinearProgressIndicator(progress = 0.2f, modifier = Modifier.fillMaxWidth())
+        LinearProgressIndicator(
+        progress = { 0.2f },
+        modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
+        )
 
         Text("15")
-        LinearProgressIndicator(progress = 0.15f, modifier = Modifier.fillMaxWidth())
+        LinearProgressIndicator(
+        progress = { 0.15f },
+        modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
+        )
 
         Text("100%")
-        LinearProgressIndicator(progress = 1f, modifier = Modifier.fillMaxWidth())
+        LinearProgressIndicator(
+        progress = { 1f },
+        modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
+        )
 
         // Current Task
-        Text("Current Task")
+        Text("Current Task", Modifier.padding(top = 35.dp, bottom = 5.dp), fontSize = 25.sp)
         Text("2/5", fontSize = 20.sp)
 
         Spacer(modifier = Modifier.height(16.dp))
 
         // Upcoming Tasks
-        Text("Upcoming")
-        Text("2 days")
-        Spacer(modifier = Modifier.height(4.dp))
-        Text("1 week")
-        Spacer(modifier = Modifier.height(8.dp))
+        Text("Upcoming", fontSize = 25.sp)
+        Text("2 days", Modifier.padding(start = 5.dp, top = 10.dp))
+        //Spacer(modifier = Modifier.height(4.dp))
+        Text("1 week", Modifier.padding(start = 5.dp, top = 10.dp))
+        //Spacer(modifier = Modifier.height(8.dp))
 
         val selectedNavigationIndex = rememberSaveable {
             mutableIntStateOf(0)
         }
-        // Bottom Navigation Bar
-        NavigationBar(
-            modifier = Modifier.fillMaxWidth(),
-            containerColor = Color.White
-        ) {
-            val navigationItems = listOf(
-                NavigationItem(
-                    title = "Home",
-                    icon = Icons.Default.Home
-                ),
-                NavigationItem(
-                    title = "Menu",
-                    icon = Icons.Default.Menu
-                ),
-                NavigationItem(
-                    title = "Add",
-                    icon = Icons.Default.Add
-                ),
-                NavigationItem(
-                    title = "Add",
-                    icon = Icons.Default.Add
-                ),
-                NavigationItem(
-                    title = "Person",
-                    icon = Icons.Default.Person
-                )
-            )
 
-            navigationItems.forEachIndexed { index, item ->
-                NavigationBarItem(
-                    icon = { Icon(imageVector = item.icon, contentDescription = item.title) },
-                    label = { Text(
-                        item.title,
-                        color = if (index == selectedNavigationIndex.intValue)
-                            Color.Black
-                        else Color.Gray
-                    ) },
-                    selected = selectedNavigationIndex.intValue == index,
-                    onClick = {
-                        selectedNavigationIndex.intValue = index
-                        //navController.navigate(item.route)
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.surface,
-                        indicatorColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-            }
-            }
         }
     }
+
+@Composable
+fun BottomNavigationBar() {
+    val selectedNavigationIndex = rememberSaveable {
+        mutableIntStateOf(0)
+    }
+
+    NavigationBar(
+        modifier = Modifier.fillMaxWidth().padding(top = 0.dp),
+        containerColor = Color.White
+    ) {
+        val navigationItems = listOf(
+            NavigationItem(title = "Home", icon = Icons.Default.Home),
+            NavigationItem(title = "Menu", icon = Icons.Default.Menu),
+            NavigationItem(title = "Add", icon = Icons.Default.Add),
+            NavigationItem(title = "Person", icon = Icons.Default.Person)
+        )
+
+        navigationItems.forEachIndexed { index, item ->
+            NavigationBarItem(
+                icon = { Icon(imageVector = item.icon, contentDescription = item.title) },
+                label = { Text(
+                    item.title,
+                    color = if (index == selectedNavigationIndex.intValue)
+                        Color.Black
+                    else Color.Gray
+                ) },
+                selected = selectedNavigationIndex.intValue == index,
+                onClick = {
+                    selectedNavigationIndex.intValue = index
+                    //navController.navigate(item.route)
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.surface,
+                    indicatorColor = MaterialTheme.colorScheme.primary
+                )
+            )
+        }
+    }
+}
 
 
 data class NavigationItem(
