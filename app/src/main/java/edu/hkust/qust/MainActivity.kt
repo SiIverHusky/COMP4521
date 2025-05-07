@@ -28,7 +28,9 @@ class MainActivity : AppCompatActivity() {
             setOf(
                 R.id.navigation_dashboard,
                 R.id.navigation_newquest,
-                R.id.navigation_questlog
+                R.id.navigation_questlog,
+                R.id.navigation_socialhub,
+                R.id.navigation_profile
             )
         )
         setupActionBarWithNavController(navController, appBarConfiguration)

@@ -12,11 +12,15 @@
     <fragment
         android:id="@+id/navigation_newquest"
         android:name="edu.hkust.qust.ui.newquest.NewQuestFragment"
-        android:label="fragment_newquest"
+        android:label="@string/title_new_quest"
         tools:layout="@layout/fragment_newquest" />
     <fragment
         android:id="@+id/navigation_questlog"
         android:name="edu.hkust.qust.ui.questlog.QuestLogFragment"
-        android:label="QuestLog"
+        android:label="@string/title_quest_log"
         tools:layout="@layout/fragment_questlog" />
+    <fragment
+        android:id="@+id/navigation_socialhub"
+        android:name="edu.hkust.qust.ui.socialhub.SocialHubFragment"
+        android:label="@string/title_social_hub" />
 </navigation>
