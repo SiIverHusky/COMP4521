@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">QUST</string>
+    <string name="title_home">Home</string>
+    <string name="title_dashboard">Dashboard</string>
+    <string name="title_notifications">Notification</string>
+    <string name="title_new_quest">NewQuest</string>
+    <string name="title_quest_log">QuestLog</string>
+    <string name="title_social_hub">SocialHub</string>
+    <string name="title_profile">Profile</string>
+</resources>
