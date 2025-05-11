@@ -38,6 +38,7 @@ import com.google.firebase.auth.auth
 import edu.hkust.qust.databinding.FragmentNewquestBinding
 import edu.hkust.qust.databinding.FragmentProfileBinding
 
+
 class ProfileFragment : Fragment() {
 
     private var _binding: FragmentProfileBinding? = null
@@ -49,6 +50,8 @@ class ProfileFragment : Fragment() {
     private lateinit var auth: FirebaseAuth;
 
     private var customToken: String? = null
+
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -70,12 +73,7 @@ class ProfileFragment : Fragment() {
 
         return ComposeView(requireContext()).apply {
             setContent {
-                if(auth.currentUser != null){
-                    profileScreen(profileViewModel)
-                }else{
-                    loginScreen(profileViewModel)
-                }
-
+                ProfileApp(profileViewModel)
             }
         }
 
@@ -133,81 +131,82 @@ class ProfileFragment : Fragment() {
 
 
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun profileScreen(profileViewModel: ProfileViewModel) {
-    Column(modifier = Modifier
-        .fillMaxWidth()
-        .padding(16.dp)) {
-        val user = "temp"
-        Text("Welcome, ${user}", fontSize = 24.sp)
-        // Add more user profile details here
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = {
-                FirebaseAuth.getInstance().signOut()
-                // Trigger a recomposition to show the LoginScreen
-
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Logout")
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun loginScreen(profileViewModel: ProfileViewModel) {
+fun ProfileApp(profileViewModel: ProfileViewModel){
+    var isLoggedIn by remember { mutableStateOf(false) }
+
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoginError by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier
         .fillMaxWidth()
-        .padding(16.dp)) {
-        Text("Login", fontSize = 24.sp)
+        .padding(16.dp)){
+        if(isLoggedIn){
+            val user = "temp"
+            Text("Welcome, ${user}", fontSize = 24.sp)
+            // Add more user profile details here
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        TextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
-        )
+            Button(
+                onClick = {
+                    FirebaseAuth.getInstance().signOut()
+                    // Trigger a recomposition to show the LoginScreen
+                    isLoggedIn = false
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Logout")
+            }
+        }else{
+            Text("Login", fontSize = 24.sp)
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        TextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation()
-        )
+            TextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                modifier = Modifier.fillMaxWidth()
+            )
 
-        if (isLoginError) {
-            Text("Invalid email or password", color = MaterialTheme.colorScheme.error)
-        }
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
+            TextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = PasswordVisualTransformation()
+            )
 
-        Button(
-            onClick = {
-                val auth = Firebase.auth
-                auth.signInWithEmailAndPassword(email, password)
-                    .addOnCompleteListener { task ->
-                        if (!task.isSuccessful) {
-                            isLoginError = true
+            if (isLoginError) {
+                Text("Invalid email or password", color = MaterialTheme.colorScheme.error)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = {
+                    val auth = Firebase.auth
+                    auth.signInWithEmailAndPassword(email, password)
+                        .addOnCompleteListener { task ->
+                            if (!task.isSuccessful) {
+                                isLoginError = true
+                            }else{
+                                isLoggedIn = true
+                            }
                         }
-                    }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Login")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Login")
+            }
         }
     }
+
 }
