@@ -48,8 +48,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import edu.hkust.qust.databinding.FragmentNewquestBinding
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Calendar
 import kotlin.text.get
 
@@ -171,6 +178,93 @@ fun formatDeadline(dateMillis: Long?, time: Pair<Int, Int>?): String {
     return String.format("%02d %s. %d - %02d:%02d", day, month, year, hour, minute)
 }
 
+// Firebase Functions
+
+fun convertStringToTimestamp(dateString: String): Long? {
+    return try {
+        val formatter = DateTimeFormatter.ofPattern("dd MMM. yyyy - HH:mm")
+        val localDateTime = LocalDateTime.parse(dateString, formatter)
+        localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+fun createQuest(
+    questName: String,
+    questDescription: String,
+    type: String,
+    deadline: String? = null,
+    duration: String? = null,
+    quantity: String? = null,
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    val aut = Firebase.auth
+    val currentUser = aut.currentUser
+
+    if (currentUser == null) {
+        onFailure(Exception("User is not logged in"))
+        return
+    }
+
+    // Payload Preparation
+    val questJSON = when (type) {
+        "None" -> JSONObject().apply {
+            put("questNameString", questName)
+            put("questDescriptionString", questDescription)
+        }
+        "Quantitiy" -> JSONObject().apply {
+            put("questNameString", questName)
+            put("questDescriptionString", "Quantity task of $quantity, with description: $questDescription")
+        }
+        "Duration" -> JSONObject().apply {
+            put("questNameString", questName)
+            put("questDescriptionString", "Duration task of $duration, with description: $questDescription")
+        }
+        "Deadline" -> JSONObject().apply {
+            put("questNameString", questName)
+            put("questDescriptionString", questDescription)
+            put("questDeadlineString", convertStringToTimestamp(deadline.toString()))
+        }
+        else -> JSONObject() // Default case to ensure questJSON is always initialized
+    }
+
+    currentUser.getIdToken(true).addOnCompleteListener { task ->
+        if (task.isSuccessful) {
+            val idToken = task.result?.token
+            val apiUrl = ""                                                                             // TODO: Replace with your API URL
+
+            Thread {
+                try {
+                    val url = URL(apiUrl)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.requestMethod = "POST"
+                    connection.setRequestProperty("Authorization", "Bearer $idToken")
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    connection.doOutput = true
+
+                    val outputStream = connection.outputStream
+                    outputStream.write(questJSON.toString().toByteArray())
+                    outputStream.flush()
+                    outputStream.close()
+
+                    if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                        onSuccess()
+                    } else {
+                        onFailure(Exception("Failed to create quest: ${connection.responseMessage}"))
+                    }
+                } catch (e: Exception) {
+                    onFailure(e)
+                }
+            }
+        } else {
+            onFailure(task.exception ?: Exception("Failed to get ID token"))
+        }
+    }
+
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
