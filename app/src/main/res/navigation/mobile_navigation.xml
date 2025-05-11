@@ -23,4 +23,10 @@
         android:id="@+id/navigation_socialhub"
         android:name="edu.hkust.qust.ui.socialhub.SocialHubFragment"
         android:label="@string/title_social_hub" />
+    <fragment
+        android:id="@+id/navigation_profile"
+        android:name="edu.hkust.qust.ui.profile.ProfileFragment"
+        android:label="@string/title_profile"
+        tools:layout="@layout/fragment_profile" />
+
 </navigation>
