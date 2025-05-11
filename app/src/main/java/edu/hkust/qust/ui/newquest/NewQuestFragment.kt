@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -76,6 +78,11 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
     var duration by remember { mutableStateOf("") }
     var deadline by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+
+    var expanded by remember { mutableStateOf(false) }
+    val types = listOf("None", "Quantity", "Duration", "Deadline")
+
 
     Column(modifier = Modifier.padding(16.dp)) {
         Text(text = "New Task", fontSize = 24.sp)
@@ -93,54 +100,83 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
         Spacer(modifier = Modifier.height(8.dp))
 
         // Quantity Input
-        Text(text = "Quantity")
-        TextField(
-            value = quantity,
-            onValueChange = { quantity = it },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
+        if (selectedType == "Quantity") {
+            Text(text = "Quantity")
+            TextField(
+                value = quantity,
+                onValueChange = { quantity = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
         // Duration Input
-        Text(text = "Duration")
-        TextField(
-            value = duration,
-            onValueChange = { duration = it },
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (selectedType == "Duration") {
+            Text(text = "Duration")
+            TextField(
+                value = duration,
+                onValueChange = { duration = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
-        Spacer(modifier = Modifier.height(8.dp))
 
         // Deadline Input
-        Text(text = "Deadline")
-        TextField(
-            value = deadline,
-            onValueChange = { deadline = it },
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (selectedType == "Deadline") {
+            Text(text = "Deadline")
+            TextField(
+                value = deadline,
+                onValueChange = { deadline = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         // Type Dropdown
         Text(text = "Type")
         ExposedDropdownMenuBox(
-            expanded = false,
-            onExpandedChange = { /* handle dropdown expansion */ }
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
         ) {
             TextField(
                 value = selectedType,
                 onValueChange = { },
                 readOnly = true,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.menuAnchor(),
                 trailingIcon = {
                     Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                 }
             )
             // Add dropdown items here
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                types.forEach {type ->
+                    DropdownMenuItem(
+                        text = { Text(text = type) },
+                        onClick = {
+                            // Handle item click
+                            selectedType = type
+                            expanded = false
+                        },
+                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Description
+        Text(text = "Description")
+        TextField(
+            value = description,
+            onValueChange = { description = it },
+            modifier = Modifier.fillMaxWidth().height(100.dp),
+            singleLine = false,
+            maxLines = 3
+        )
 
     }
 }
