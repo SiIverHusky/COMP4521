@@ -7,12 +7,11 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
-
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,17 +53,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import com.google.android.gms.tasks.Task
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
+import com.google.firebase.functions.FirebaseFunctionsException
+import com.google.firebase.functions.functions
+import com.google.firebase.functions.ktx.functions
 import edu.hkust.qust.databinding.FragmentNewquestBinding
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
-import kotlin.toString
 
 
 class NewQuestFragment : Fragment() {
@@ -90,6 +89,8 @@ class NewQuestFragment : Fragment() {
                         Log.e("NewQuestFragment", "Sign-in failed: ${task.exception?.message}")
                     }
                 }
+        } else {
+            Log.d("NewQuestFragment", "User is already signed in: ${currentUser.email}")
         }
     }
 
@@ -221,81 +222,38 @@ fun convertStringToTimestamp(dateString: String): Long? {
     }
 }
 
-fun createQuest(
+
+private fun createQuest(
     questName: String,
     questDescription: String,
     type: String,
     deadline: String? = null,
     duration: String? = null,
-    quantity: String? = null,
-    onSuccess: (String) -> Unit, // Accepts a String parameter
-    onFailure: (Exception) -> Unit
-) {
-    val aut = Firebase.auth
-    val currentUser = aut.currentUser
-
-    if (currentUser == null) {
-        onFailure(Exception("User is not logged in"))
-        return
-    }
-
-    // Payload Preparation
-    val questJSON = when (type) {
-        "None" -> JSONObject().apply {
-            put("questNameString", questName)
-            put("questDescriptionString", questDescription)
-        }
-        "Quantitiy" -> JSONObject().apply {
-            put("questNameString", questName)
-            put("questDescriptionString", "Quantity task of $quantity, with description: $questDescription")
-        }
-        "Duration" -> JSONObject().apply {
-            put("questNameString", questName)
-            put("questDescriptionString", "Duration task of $duration, with description: $questDescription")
-        }
-        "Deadline" -> JSONObject().apply {
-            put("questNameString", questName)
-            put("questDescriptionString", questDescription)
-            put("questDeadlineString", convertStringToTimestamp(deadline.toString()))
-        }
-        else -> JSONObject() // Default case to ensure questJSON is always initialized
-    }
-
-    Log.d("NewQuestFragment", "questJSON: $questJSON")
-
-    currentUser.getIdToken(true).addOnCompleteListener { task ->
-        if (task.isSuccessful) {
-            val idToken = task.result?.token
-            val apiUrl = "https://createquest-saoopb5pya-df.a.run.app"
-
-            Thread {
-                try {
-                    val url = URL(apiUrl)
-                    val connection = url.openConnection() as HttpURLConnection
-                    connection.requestMethod = "POST"
-                    connection.setRequestProperty("Authorization", "Bearer $idToken")
-                    connection.setRequestProperty("Content-Type", "application/json")
-                    connection.doOutput = true
-
-                    val outputStream = connection.outputStream
-                    outputStream.write(questJSON.toString().toByteArray())
-                    outputStream.flush()
-                    outputStream.close()
-
-                    if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                        val response = connection.inputStream.bufferedReader().use { it.readText() }
-                        onSuccess(response) // Pass the response data to the success callback
-                    } else {
-                        onFailure(Exception("Failed to create quest: ${connection.responseMessage}"))
-                    }
-                } catch (e: Exception) {
-                    onFailure(e)
-                }
-            }.start()
-        } else {
-            onFailure(task.exception ?: Exception("Failed to get ID token"))
+    quantity: String? = null
+): Task<String> {
+    // Create the arguments to the callable function.
+    val data = hashMapOf<String, Any>(
+        "questNameString" to questName,
+        "questDescriptionString" to questDescription
+    ).apply {
+        when (type) {
+            "Quantity" -> put("questDescriptionString", "Quantity task of $quantity, with description: $questDescription")
+            "Duration" -> put("questDescriptionString", "Duration task of $duration, with description: $questDescription")
+            "Deadline" -> {
+                put("deadlineTimestamp", convertStringToTimestamp(deadline.toString()) ?: 0L)
+            }
         }
     }
+
+    // Call the Firebase function and handle the result.
+    return Firebase.functions("asia-east2")
+        .getHttpsCallable("createQuest")
+        .call(data)
+        .continueWith { task ->
+            // This continuation runs on either success or failure.
+            val result = task.result?.data as String
+            result
+        }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -320,7 +278,7 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
     Box(modifier = Modifier.fillMaxSize())
     {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = "New Task", fontSize = 24.sp)
+            Text(text = "Enter Quest Details", fontSize = 24.sp)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -500,19 +458,47 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
                     deadline = if (selectedType == "Deadline") deadline else null,
                     duration = if (selectedType == "Duration") "${durationH}h ${durationM}m" else null,
                     quantity = if (selectedType == "Quantity") quantity else null,
-                    onSuccess = { response ->
-                        Log.d("NewQuest", "API Response: ${response}")
-                    },
-                    onFailure = { error ->
-                        // Handle failure (e.g., show an error message)
-                        Log.e("NewQuestFragment", "Failed to create quest: ${error.message}")
+                ).addOnCompleteListener { task ->
+                    if (!task.isSuccessful) {
+                        val e = task.exception
+                        if (e is FirebaseFunctionsException) {
+                            val code = e.code
+                            val details = e.details
+                            Log.d("NewQuestFragment", "Error $code: $details")
+                        }
+                    } else {
+                        Log.d("NewQuestFragment", "Created Quest!")
                     }
-                )
+                }
+
+                createQuest(
+                    questName = name,
+                    questDescription = description,
+                    type = selectedType,
+                    deadline = if (selectedType == "Deadline") deadline else null,
+                    duration = if (selectedType == "Duration") "${durationH}h ${durationM}m" else null,
+                    quantity = if (selectedType == "Quantity") quantity else null,
+                ).addOnCompleteListener { task ->
+                    if (!task.isSuccessful) {
+                        val e = task.exception
+                        if (e is FirebaseFunctionsException) {
+                            val code = e.code
+                            val details = e.details
+                            Log.d("NewQuestFragment", "Error $code: $details")
+                        }
+                    } else {
+                        Log.d("NewQuestFragment", "Created Quest!")
+                    }
+                }
             },
             modifier = Modifier
-                .padding(16.dp)
+                .padding(PaddingValues(
+                    start = 16.dp,
+                    top = 16.dp,
+                    end = 16.dp,
+                    bottom = 64.dp // Specify a different bottom padding
+                ))
                 .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
         ) { Text("+") }
     }
 
