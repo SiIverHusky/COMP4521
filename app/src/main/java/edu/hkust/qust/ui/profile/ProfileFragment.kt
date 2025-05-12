@@ -36,6 +36,7 @@ import com.google.firebase.firestore.firestore
 import edu.hkust.qust.databinding.FragmentProfileBinding
 import kotlin.collections.get
 import kotlin.text.get
+import kotlin.text.toInt
 
 
 class ProfileFragment : Fragment() {
@@ -79,11 +80,10 @@ class ProfileFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val profileViewModel = ViewModelProvider(this).get(ProfileViewModel::class.java)
-        fetchUserData(profileViewModel)
+        fetchUserData()
     }
 
-    private fun fetchUserData(profileViewModel: ProfileViewModel) {
+    private fun fetchUserData() {
         val currentUser = auth.currentUser
         if (currentUser != null) {
             val db = Firebase.firestore
@@ -91,8 +91,12 @@ class ProfileFragment : Fragment() {
             db.collection("users").document(uid).get()
                 .addOnSuccessListener { document ->
                     if (document.exists()) {
-                        val username = document.data?.get("usernameString") as? String
-                        profileViewModel.usernameStartup = username ?: ""
+                        UserDataStore.username = document.getString("usernameString")
+                        UserDataStore.accountLevel = document.getLong("accountLevelNumber")?.toInt()
+                        UserDataStore.experiencePoints = document.getLong("experiencePointNumber")?.toInt()
+                        UserDataStore.health = document.getLong("healthNumber")?.toInt()
+                        UserDataStore.strength = document.getLong("strengthNumber")?.toInt()
+                        UserDataStore.intelligence = document.getLong("intelligenceNumber")?.toInt()
                     }
                 }
                 .addOnFailureListener { exception ->
@@ -111,7 +115,23 @@ class ProfileFragment : Fragment() {
 
 }
 
+object UserDataStore {
+    var username: String? = null
+    var accountLevel: Int? = null
+    var experiencePoints: Int? = null
+    var health: Int? = null
+    var strength: Int? = null
+    var intelligence: Int? = null
+}
 
+private fun clearUserData() {
+    UserDataStore.username = null
+    UserDataStore.accountLevel = null
+    UserDataStore.experiencePoints = null
+    UserDataStore.health = null
+    UserDataStore.strength = null
+    UserDataStore.intelligence = null
+}
 
 
 
@@ -129,14 +149,13 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
     var confirmPassword by remember { mutableStateOf("") }
     var isSignUpError by remember { mutableStateOf(false) }
 
-    val usernameStartup = profileViewModel.usernameStartup
-
-    if (usernameStartup.isNotEmpty()) {
-        username = usernameStartup
-    }
 
 
     isLoggedIn = isUserLoggedIn(requireContext)
+
+    if (isLoggedIn) {
+        username = UserDataStore.username.toString()
+    }
     Column(modifier = Modifier
         .fillMaxWidth()
         .padding(16.dp)){
@@ -241,6 +260,12 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                                             if (document.exists()) {
                                                 var userData = document.data
                                                 username = userData?.get("usernameString") as String
+                                                UserDataStore.username = document.getString("usernameString")
+                                                UserDataStore.accountLevel = document.getLong("accountLevelNumber")?.toInt()
+                                                UserDataStore.experiencePoints = document.getLong("experiencePointNumber")?.toInt()
+                                                UserDataStore.health = document.getLong("healthNumber")?.toInt()
+                                                UserDataStore.strength = document.getLong("strengthNumber")?.toInt()
+                                                UserDataStore.intelligence = document.getLong("intelligenceNumber")?.toInt()
                                             } else {
                                                 Log.d("ProfileFragment", "No such document")
                                             }
@@ -299,6 +324,12 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                                                     .set(userData)
                                                     .addOnSuccessListener {
                                                         Log.d("ProfileFragment", "User data saved")
+                                                        UserDataStore.username = username
+                                                        UserDataStore.accountLevel = 1
+                                                        UserDataStore.experiencePoints = 0
+                                                        UserDataStore.health = 100
+                                                        UserDataStore.strength = 1
+                                                        UserDataStore.intelligence = 1
                                                         isLoggedIn = true
                                                         saveLoginStatus(requireContext, true)
                                                     }

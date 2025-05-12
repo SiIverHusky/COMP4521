@@ -43,6 +43,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import edu.hkust.qust.R
 import edu.hkust.qust.databinding.FragmentDashboardBinding
+import edu.hkust.qust.ui.profile.UserDataStore
 import kotlinx.coroutines.delay
 
 
@@ -127,53 +128,39 @@ fun UserProfileScreen(
         // Profile Image Placeholder
         SpriteAnimation(requireContext, isAnimating)
 
+
         // Name and Class
-        var name : String = ""
-        dashboardViewModel.name.observe(viewLifecycleOwner){
-            name = it
-        }
+        val name = UserDataStore.username ?: "Unknown"
         Text(name, Modifier.padding(top = 10.dp, bottom = 5.dp), fontSize = 24.sp)
         Text("Character class: Knight", Modifier.padding(top = 15.dp, bottom = 5.dp), fontSize = 18.sp)
 
         // Level Progress Bar
-        var level : String = "50"
-        dashboardViewModel.level.observe(viewLifecycleOwner){
-            level = it
-        }
-        Text("Lv" + level, Modifier.padding(top = 15.dp, bottom = 3.dp))
+        val level = UserDataStore.accountLevel ?: 0
+        Text("Lv$level", Modifier.padding(top = 15.dp, bottom = 3.dp))
         LinearProgressIndicator(
             progress = { 0.75f },
             modifier = Modifier.fillMaxWidth().padding(top = 3.dp, bottom = 10.dp)
         )
 
         // Other Progress Bars
-        var strength : String = "50"
-        dashboardViewModel.strength.observe(viewLifecycleOwner){
-            strength = it
-        }
-        Text("Strength: " + strength)
+        val strength = UserDataStore.strength ?: 0
+        Text("Strength: $strength")
         LinearProgressIndicator(
-            progress = { 0.2f },
+            progress = { strength / 100f },
             modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
         )
 
-        var IQ : String = "50"
-        dashboardViewModel.IQ.observe(viewLifecycleOwner){
-            IQ = it
-        }
-        Text("Intelligence: " + IQ)
+        val intelligence = UserDataStore.intelligence ?: 0
+        Text("Intelligence: $intelligence")
         LinearProgressIndicator(
-            progress = { 0.15f },
+            progress = { intelligence / 100f },
             modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
         )
 
-        var HP : String = "50"
-        dashboardViewModel.HP.observe(viewLifecycleOwner){
-            HP = it
-        }
-        Text("HP: " + HP)
+        val health = UserDataStore.health ?: 0
+        Text("HP: $health")
         LinearProgressIndicator(
-            progress = { HP.toFloat()/100 },
+            progress = { health / 100f },
             modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
         )
 
