@@ -138,7 +138,7 @@ fun UserProfileScreen(
         val level = UserDataStore.accountLevel ?: 0
         Text("Lv$level", Modifier.padding(top = 15.dp, bottom = 3.dp))
         LinearProgressIndicator(
-            progress = { 0.75f },
+            progress = { UserDataStore.experiencePoints?.div(100f) ?:  0f},
             modifier = Modifier.fillMaxWidth().padding(top = 3.dp, bottom = 10.dp)
         )
 
