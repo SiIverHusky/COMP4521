@@ -124,8 +124,7 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
         .fillMaxWidth()
         .padding(16.dp)){
         if(isLoggedIn){
-            val user = "User"
-            Text("Welcome, ${user}", fontSize = 24.sp)
+            Text("Welcome, ${username}", fontSize = 24.sp)
             // Add more user profile details here
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -217,7 +216,27 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                                     val user = auth.currentUser
                                     Log.d("ProfileFragment", "User: ${user?.email}")
 
+                                    // Fetch user data from Firestore
+                                    val db = Firebase.firestore
+                                    val uid = user?.uid
+                                    db.collection("users").document(uid.toString()).get()
+                                        .addOnSuccessListener { document ->
+                                            if (document.exists()) {
+                                                var userData = document.data
+                                                username = userData?.get("usernameString") as String
+                                            } else {
+                                                Log.d("ProfileFragment", "No such document")
+                                            }
+                                        }
+                                        .addOnFailureListener {
+                                            Log.d("ProfileFragment", "Error getting document: ", it)
+                                        }
+
                                 }
+                            }
+                            .addOnFailureListener {
+                                isLoginError = true
+                                Log.d("ProfileFragment", "Error: ${it.message}")
                             }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -249,10 +268,15 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                                     auth.createUserWithEmailAndPassword(email, password)
                                         .addOnCompleteListener { task ->
                                             if (task.isSuccessful) {
-                                                val user = auth.currentUser
+                                                var user = auth.currentUser
                                                 val userData = hashMapOf(
-                                                    "usernameString" to username,
-                                                    "emailString" to email
+                                                    "accountLevelNumber" to 1,
+                                                    "createdAtTimestamp" to System.currentTimeMillis(),
+                                                    "experiencePointNumber" to 0,
+                                                    "healthNumber" to 100,
+                                                    "intelligenceNumber" to 1,
+                                                    "strengthNumber" to 1,
+                                                    "usernameString" to username
                                                 )
                                                 db.collection("users").document(user!!.uid)
                                                     .set(userData)
