@@ -34,6 +34,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
 import edu.hkust.qust.databinding.FragmentProfileBinding
+import kotlin.collections.get
+import kotlin.text.get
 
 
 class ProfileFragment : Fragment() {
@@ -75,17 +77,28 @@ class ProfileFragment : Fragment() {
         return root
     }
 
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        val profileViewModel = ViewModelProvider(this).get(ProfileViewModel::class.java)
+        fetchUserData(profileViewModel)
+    }
 
-
-    override fun onStart() {
-        super.onStart()
-        // Check if user is signed in (non-null) and update UI accordingly.
+    private fun fetchUserData(profileViewModel: ProfileViewModel) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
-            // User is signed in
+            val db = Firebase.firestore
+            val uid = currentUser.uid
+            db.collection("users").document(uid).get()
+                .addOnSuccessListener { document ->
+                    if (document.exists()) {
+                        val username = document.data?.get("usernameString") as? String
+                        profileViewModel.usernameStartup = username ?: ""
+                    }
+                }
+                .addOnFailureListener { exception ->
+                    Log.d("ProfileFragment", "Error getting document: ", exception)
+                }
         }
-
-        //updateUI(currentUser)
     }
 
 
@@ -116,7 +129,11 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
     var confirmPassword by remember { mutableStateOf("") }
     var isSignUpError by remember { mutableStateOf(false) }
 
+    val usernameStartup = profileViewModel.usernameStartup
 
+    if (usernameStartup.isNotEmpty()) {
+        username = usernameStartup
+    }
 
 
     isLoggedIn = isUserLoggedIn(requireContext)
