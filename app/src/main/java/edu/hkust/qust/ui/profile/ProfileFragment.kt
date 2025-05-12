@@ -1,7 +1,8 @@
 package edu.hkust.qust.ui.profile
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,12 +11,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -34,7 +31,6 @@ import androidx.lifecycle.ViewModelProvider
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
-import edu.hkust.qust.databinding.FragmentNewquestBinding
 import edu.hkust.qust.databinding.FragmentProfileBinding
 
 
@@ -47,8 +43,6 @@ class ProfileFragment : Fragment() {
     private val binding get() = _binding!!
 
     private lateinit var auth: FirebaseAuth;
-
-    private var customToken: String? = null
 
 
 
@@ -69,10 +63,10 @@ class ProfileFragment : Fragment() {
         //dashboardViewModel.text.observe(viewLifecycleOwner) {
         //    textView.text = it
         //}
-
+        isUserLoggedIn(requireContext())
         return ComposeView(requireContext()).apply {
             setContent {
-                ProfileApp(profileViewModel)
+                ProfileApp(profileViewModel, requireContext())
             }
         }
 
@@ -92,15 +86,14 @@ class ProfileFragment : Fragment() {
         //updateUI(currentUser)
     }
 
+
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
         Firebase.auth.signOut()
     }
 
-    companion object {
-        private const val TAG = "CustomAuthActivity"
-    }
+
 }
 
 
@@ -109,18 +102,19 @@ class ProfileFragment : Fragment() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileApp(profileViewModel: ProfileViewModel){
+fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
     var isLoggedIn by remember { mutableStateOf(false) }
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoginError by remember { mutableStateOf(false) }
 
+    isLoggedIn = isUserLoggedIn(requireContext)
     Column(modifier = Modifier
         .fillMaxWidth()
         .padding(16.dp)){
         if(isLoggedIn){
-            val user = "temp"
+            val user = "User"
             Text("Welcome, ${user}", fontSize = 24.sp)
             // Add more user profile details here
 
@@ -130,6 +124,7 @@ fun ProfileApp(profileViewModel: ProfileViewModel){
                 onClick = {
                     FirebaseAuth.getInstance().signOut()
                     // Trigger a recomposition to show the LoginScreen
+                    saveLoginStatus(requireContext, false)
                     isLoggedIn = false
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -177,8 +172,12 @@ fun ProfileApp(profileViewModel: ProfileViewModel){
                                 isLoginError = true
                             }else{
                                 isLoggedIn = true
+
+                                // Save logged-in state
+                                saveLoginStatus(requireContext, true)
                                 val user = auth.currentUser
                                 Log.d("ProfileFragment", "User: ${user?.email}")
+
                             }
                         }
                 },
@@ -189,4 +188,17 @@ fun ProfileApp(profileViewModel: ProfileViewModel){
         }
     }
 
+}
+
+fun saveLoginStatus(context: Context, isLoggedIn: Boolean) {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+    with(sharedPreferences.edit()) {
+        putBoolean("isLoggedIn", isLoggedIn)
+        apply()
+    }
+}
+
+fun isUserLoggedIn(context: Context): Boolean {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+    return sharedPreferences.getBoolean("isLoggedIn", false) // Default is false
 }

@@ -1,11 +1,16 @@
 package edu.hkust.qust.ui.newquest
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -61,6 +66,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Calendar
 import kotlin.toString
 
+
 class NewQuestFragment : Fragment() {
 
     private var _binding: FragmentNewquestBinding? = null
@@ -105,7 +111,12 @@ class NewQuestFragment : Fragment() {
 
         return ComposeView(requireContext()).apply {
             setContent {
-                NewTaskScreen(newQuestViewModel)
+                if(isUserLoggedIn(requireContext())) {
+                    NewTaskScreen(newQuestViewModel)
+                }else{
+                    LoginPrompt()
+                }
+
             }
         }
 
@@ -532,4 +543,26 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
             }
         )
     }
+}
+
+@Composable
+fun LoginPrompt() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = "Please log in to view this content.", style = MaterialTheme.typography.bodyLarge)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+
+    }
+}
+
+fun isUserLoggedIn(context: Context): Boolean {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+    return sharedPreferences.getBoolean("isLoggedIn", false) // Default is false
 }

@@ -1,5 +1,7 @@
 package edu.hkust.qust.ui.socialhub
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -53,6 +56,7 @@ import edu.hkust.qust.databinding.FragmentDashboardBinding
 import edu.hkust.qust.databinding.FragmentNewquestBinding
 import edu.hkust.qust.databinding.FragmentSocialhubBinding
 
+
 class SocialHubFragment : Fragment() {
 
     private var _binding: FragmentSocialhubBinding? = null
@@ -79,8 +83,11 @@ class SocialHubFragment : Fragment() {
 
         return ComposeView(requireContext()).apply {
             setContent {
-                Quest("COMP2711")
-                Quest("COMP3711")
+                if(isUserLoggedIn(requireContext())) {
+                    Quest("COMP3711")
+                }else{
+                    LoginPrompt()
+                }
             }
         }
 
@@ -244,4 +251,26 @@ fun BottomBarWithImages() {
 fun GreetingPreview() {
     Quest("COMP2711")
 
+}
+
+@Composable
+fun LoginPrompt() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = "Please log in to view this content.", style = MaterialTheme.typography.bodyLarge)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+
+    }
+}
+
+fun isUserLoggedIn(context: Context): Boolean {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+    return sharedPreferences.getBoolean("isLoggedIn", false) // Default is false
 }

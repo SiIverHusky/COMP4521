@@ -1,14 +1,16 @@
 package edu.hkust.qust.ui.dashboard
 
+import android.content.Context
+import android.content.SharedPreferences
+import android.graphics.BitmapFactory
 import android.os.Bundle
+
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
+
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,22 +18,33 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelProvider
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.auth
+import edu.hkust.qust.R
 import edu.hkust.qust.databinding.FragmentDashboardBinding
+import kotlinx.coroutines.delay
+
 
 class DashboardFragment : Fragment() {
 
@@ -41,11 +54,18 @@ class DashboardFragment : Fragment() {
     // onDestroyView.
     private val binding get() = _binding!!
 
+    private var isAnimating by mutableStateOf(true)
+
+    private lateinit var auth: FirebaseAuth;
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        auth = Firebase.auth
+
+
         val dashboardViewModel =
             ViewModelProvider(this).get(DashboardViewModel::class.java)
 
@@ -57,9 +77,16 @@ class DashboardFragment : Fragment() {
         //    textView.text = it
         //}
 
+
         return ComposeView(requireContext()).apply {
             setContent {
-                UserProfileScreen(dashboardViewModel)
+                //SpriteAnimation(context = requireContext()) // Pass context
+                if(isUserLoggedIn(requireContext())){
+                    UserProfileScreen(dashboardViewModel, requireContext(), isAnimating, viewLifecycleOwner)
+                }else{
+                    LoginPrompt()
+                }
+
             }
         }
 
@@ -70,10 +97,25 @@ class DashboardFragment : Fragment() {
         super.onDestroyView()
         _binding = null
     }
+
+    override fun onPause() {
+        super.onPause()
+        isAnimating = false // Stop animation when paused
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isAnimating = true // Resume animation when resumed
+    }
 }
 
 @Composable
-fun UserProfileScreen(dashboardViewModel: DashboardViewModel) {
+fun UserProfileScreen(
+    dashboardViewModel: DashboardViewModel,
+    requireContext: Context,
+    isAnimating: Boolean,
+    viewLifecycleOwner: LifecycleOwner
+) {
     //Spacer(Modifier.padding(vertical = 10.dp))
     Column(
         modifier = Modifier
@@ -83,61 +125,137 @@ fun UserProfileScreen(dashboardViewModel: DashboardViewModel) {
         horizontalAlignment = Alignment.Start
     ) {
         // Profile Image Placeholder
-        Box(
-            modifier = Modifier
-                .size(100.dp)
-                .border(BorderStroke(1.dp, Color.Gray), shape = RoundedCornerShape(50)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("Profile", fontSize = 16.sp)
-        }
+        SpriteAnimation(requireContext, isAnimating)
 
         // Name and Class
-        Text("Name", Modifier.padding(top = 10.dp, bottom = 5.dp), fontSize = 24.sp)
-        Text("Class", Modifier.padding(top = 15.dp, bottom = 5.dp), fontSize = 18.sp)
+        var name : String = ""
+        dashboardViewModel.name.observe(viewLifecycleOwner){
+            name = it
+        }
+        Text(name, Modifier.padding(top = 10.dp, bottom = 5.dp), fontSize = 24.sp)
+        Text("Character class: Knight", Modifier.padding(top = 15.dp, bottom = 5.dp), fontSize = 18.sp)
 
         // Level Progress Bar
-        Text("Level 5", Modifier.padding(top = 15.dp, bottom = 3.dp))
+        var level : String = "50"
+        dashboardViewModel.level.observe(viewLifecycleOwner){
+            level = it
+        }
+        Text("Lv" + level, Modifier.padding(top = 15.dp, bottom = 3.dp))
         LinearProgressIndicator(
             progress = { 0.75f },
             modifier = Modifier.fillMaxWidth().padding(top = 3.dp, bottom = 10.dp)
         )
 
         // Other Progress Bars
-        Text("20")
+        var strength : String = "50"
+        dashboardViewModel.strength.observe(viewLifecycleOwner){
+            strength = it
+        }
+        Text("Strength: " + strength)
         LinearProgressIndicator(
             progress = { 0.2f },
             modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
         )
 
-        Text("15")
+        var IQ : String = "50"
+        dashboardViewModel.IQ.observe(viewLifecycleOwner){
+            IQ = it
+        }
+        Text("Intelligence: " + IQ)
         LinearProgressIndicator(
             progress = { 0.15f },
             modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
         )
 
-        Text("100%")
+        var HP : String = "50"
+        dashboardViewModel.HP.observe(viewLifecycleOwner){
+            HP = it
+        }
+        Text("HP: " + HP)
         LinearProgressIndicator(
-            progress = { 1f },
+            progress = { HP.toFloat()/100 },
             modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
         )
 
         // Current Task
-        Text("Current Task", Modifier.padding(top = 35.dp, bottom = 5.dp), fontSize = 25.sp)
-        Text("2/5", fontSize = 20.sp)
+        Column {
+            Text("Current Task", Modifier.padding(top = 35.dp, bottom = 5.dp), fontSize = 25.sp)
+            Text("2/5", fontSize = 20.sp)
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         // Upcoming Tasks
-        Text("Upcoming", fontSize = 25.sp)
-        Text("2 days", Modifier.padding(start = 5.dp, top = 10.dp))
-        //Spacer(modifier = Modifier.height(4.dp))
-        Text("1 week", Modifier.padding(start = 5.dp, top = 10.dp))
-        //Spacer(modifier = Modifier.height(8.dp))
+        Column {
+            Text("Upcoming", fontSize = 25.sp)
+            Text("2 days", Modifier.padding(start = 5.dp, top = 10.dp))
+            //Spacer(modifier = Modifier.height(4.dp))
+            Text("1 week", Modifier.padding(start = 5.dp, top = 10.dp))
+            //Spacer(modifier = Modifier.height(8.dp))
+        }
+
 
         val selectedNavigationIndex = rememberSaveable {
             mutableIntStateOf(0)
         }
 
     }
+}
+
+@Composable
+fun SpriteAnimation(context: Context, isAnimating: Boolean) {
+    val frameCount = 4 // Total number of frames
+    val frameDuration = 100L // Duration for each frame in milliseconds
+
+    // Load bitmaps for each frame
+    val bitmaps = remember {
+        List(frameCount) { index ->
+            BitmapFactory.decodeResource(context.resources, getResourceId(index)).asImageBitmap()
+        }
+    }
+
+    var currentFrame by remember { mutableStateOf(0) }
+
+    LaunchedEffect(isAnimating) {
+        if (isAnimating) {
+            while (true) {
+                delay(frameDuration)
+                currentFrame = (currentFrame + 1) % frameCount
+            }
+        }
+    }
+
+    Image(bitmap = bitmaps[currentFrame], contentDescription = null, modifier = Modifier.size(100.dp))
+}
+
+private fun getResourceId(index: Int): Int {
+    return when (index) {
+        0 -> R.drawable.knight0
+        1 -> R.drawable.knight1
+        2 -> R.drawable.knight2
+        3 -> R.drawable.knight3
+        else -> R.drawable.knight0 // Default case
+    }
+}
+
+@Composable
+fun LoginPrompt() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = "Please log in to view this content.", style = MaterialTheme.typography.bodyLarge)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+
+    }
+}
+
+fun isUserLoggedIn(context: Context): Boolean {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+    return sharedPreferences.getBoolean("isLoggedIn", false) // Default is false
 }
