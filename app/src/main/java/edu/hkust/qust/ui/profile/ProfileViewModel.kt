@@ -14,5 +14,4 @@ class ProfileViewModel : ViewModel() {
     }
     val text: LiveData<String> = _text
 
-    var usernameStartup by mutableStateOf("")
 }
