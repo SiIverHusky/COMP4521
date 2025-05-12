@@ -1,6 +1,7 @@
 package edu.hkust.qust.ui.newquest
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -58,7 +59,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
-import kotlin.text.get
+import kotlin.toString
 
 class NewQuestFragment : Fragment() {
 
@@ -67,6 +68,24 @@ class NewQuestFragment : Fragment() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
+
+    override fun onStart() {
+        super.onStart()
+        val auth = Firebase.auth
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            val testEmail = "haris@gmail.com"
+            val testPassword = "testing"
+            auth.signInWithEmailAndPassword(testEmail, testPassword)
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        Log.d("NewQuestFragment", "Sign-in successful")
+                    } else {
+                        Log.e("NewQuestFragment", "Sign-in failed: ${task.exception?.message}")
+                    }
+                }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -198,7 +217,7 @@ fun createQuest(
     deadline: String? = null,
     duration: String? = null,
     quantity: String? = null,
-    onSuccess: () -> Unit,
+    onSuccess: (String) -> Unit, // Accepts a String parameter
     onFailure: (Exception) -> Unit
 ) {
     val aut = Firebase.auth
@@ -231,10 +250,12 @@ fun createQuest(
         else -> JSONObject() // Default case to ensure questJSON is always initialized
     }
 
+    Log.d("NewQuestFragment", "questJSON: $questJSON")
+
     currentUser.getIdToken(true).addOnCompleteListener { task ->
         if (task.isSuccessful) {
             val idToken = task.result?.token
-            val apiUrl = ""                                                                             // TODO: Replace with your API URL
+            val apiUrl = "https://createquest-saoopb5pya-df.a.run.app"
 
             Thread {
                 try {
@@ -251,19 +272,19 @@ fun createQuest(
                     outputStream.close()
 
                     if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                        onSuccess()
+                        val response = connection.inputStream.bufferedReader().use { it.readText() }
+                        onSuccess(response) // Pass the response data to the success callback
                     } else {
                         onFailure(Exception("Failed to create quest: ${connection.responseMessage}"))
                     }
                 } catch (e: Exception) {
                     onFailure(e)
                 }
-            }
+            }.start()
         } else {
             onFailure(task.exception ?: Exception("Failed to get ID token"))
         }
     }
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -274,7 +295,7 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
     var durationH by remember { mutableStateOf("") }
     var durationM by remember { mutableStateOf("") }
     var deadline by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf("None") }
     var description by remember { mutableStateOf("") }
 
     var expanded by remember { mutableStateOf(false) }
@@ -372,7 +393,9 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
                         placeholder = { Text("Select a deadline") },
                         singleLine = true
                     )
-                    Button(onClick = {showDatePicker = true}, modifier = Modifier.minimumInteractiveComponentSize().align(Alignment.CenterVertically)) {Text("+")}
+                    Button(onClick = {showDatePicker = true}, modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .align(Alignment.CenterVertically)) {Text("+")}
                 }
             }
 
@@ -419,16 +442,66 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
             TextField(
                 value = description,
                 onValueChange = { description = it },
-                modifier = Modifier.fillMaxWidth().height(100.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp),
                 singleLine = false,
                 maxLines = 3
             )
         }
         FloatingActionButton(
             onClick = {
-                // ToDo
+                // Input Validation
+                when (selectedType) {
+                    "None" -> {
+                        if (name.isBlank() || description.isBlank()) {
+                            // Show error (e.g., Toast or Snackbar)
+                            return@FloatingActionButton
+                        }
+                    }
+                    "Quantity" -> {
+                        if (name.isBlank() || quantity.isBlank() || description.isBlank()) {
+                            // Show error (e.g., Toast or Snackbar)
+                            return@FloatingActionButton
+                        }
+                    }
+                    "Duration" -> {
+                        if (name.isBlank() || durationH.isBlank() || durationM.isBlank() || description.isBlank()) {
+                            // Show error (e.g., Toast or Snackbar)
+                            return@FloatingActionButton
+                        }
+                    }
+                    "Deadline" -> {
+                        if (name.isBlank() || deadline.isBlank() || description.isBlank()) {
+                            // Show error (e.g., Toast or Snackbar)
+                            return@FloatingActionButton
+                        }
+                    }
+                    else -> {
+                        return@FloatingActionButton
+                    }
+                }
+
+                createQuest(
+                    questName = name,
+                    questDescription = description,
+                    type = selectedType,
+                    deadline = if (selectedType == "Deadline") deadline else null,
+                    duration = if (selectedType == "Duration") "${durationH}h ${durationM}m" else null,
+                    quantity = if (selectedType == "Quantity") quantity else null,
+                    onSuccess = { response ->
+                        Log.d("NewQuest", "API Response: ${response}")
+                    },
+                    onFailure = { error ->
+                        // Handle failure (e.g., show an error message)
+                        Log.e("NewQuestFragment", "Failed to create quest: ${error.message}")
+                    }
+                )
             },
-            modifier = Modifier.padding(16.dp).align(Alignment.BottomEnd).navigationBarsPadding()
+            modifier = Modifier
+                .padding(16.dp)
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
         ) { Text("+") }
     }
 
