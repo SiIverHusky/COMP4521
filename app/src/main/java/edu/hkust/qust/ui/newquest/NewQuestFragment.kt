@@ -58,7 +58,6 @@ import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.functions.functions
-import com.google.firebase.functions.ktx.functions
 import edu.hkust.qust.databinding.FragmentNewquestBinding
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -79,16 +78,16 @@ class NewQuestFragment : Fragment() {
         val auth = Firebase.auth
         val currentUser = auth.currentUser
         if (currentUser == null) {
-            val testEmail = "haris@gmail.com"
-            val testPassword = "testing"
-            auth.signInWithEmailAndPassword(testEmail, testPassword)
-                .addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        Log.d("NewQuestFragment", "Sign-in successful")
-                    } else {
-                        Log.e("NewQuestFragment", "Sign-in failed: ${task.exception?.message}")
-                    }
-                }
+//            val testEmail = "haris@gmail.com"
+//            val testPassword = "testing"
+//            auth.signInWithEmailAndPassword(testEmail, testPassword)
+//                .addOnCompleteListener { task ->
+//                    if (task.isSuccessful) {
+//                        Log.d("NewQuestFragment", "Sign-in successful")
+//                    } else {
+//                        Log.e("NewQuestFragment", "Sign-in failed: ${task.exception?.message}")
+//                    }
+//                }
         } else {
             Log.d("NewQuestFragment", "User is already signed in: ${currentUser.email}")
         }
