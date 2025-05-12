@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "573695583690",
+    "project_id": "comp4521-beae5",
+    "storage_bucket": "comp4521-beae5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:573695583690:android:075d9d3b590c14ed835b33",
+        "android_client_info": {
+          "package_name": "edu.hkust.qust"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2rSNunicnYbYeN5hyX5V3ao87BGLHj_k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
