@@ -1,6 +1,10 @@
 package edu.hkust.qust.ui.questlog
 
+import android.content.ContentValues.TAG
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,11 +29,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.auth
+import com.google.firebase.firestore.Filter
+import com.google.firebase.firestore.FirebaseFirestore
 import edu.hkust.qust.databinding.FragmentQuestlogBinding
 
 class QuestLogFragment : Fragment() {
 
     private var _binding: FragmentQuestlogBinding? = null
+
+    private lateinit var auth: FirebaseAuth;
+    private lateinit var firestore: FirebaseFirestore
+    val db = FirebaseFirestore.getInstance()
 
     // This property is only valid between onCreateView and
     // onDestroyView.
@@ -39,6 +53,8 @@ class QuestLogFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        auth = Firebase.auth
+
         val questLogViewModel =
             ViewModelProvider(this).get(QuestLogViewModel::class.java)
 
@@ -52,7 +68,11 @@ class QuestLogFragment : Fragment() {
 
         return ComposeView(requireContext()).apply {
             setContent {
-                TaskAndQuestScreen(questLogViewModel)
+                if(isUserLoggedIn(requireContext())) {
+                    TaskAndQuestScreen(questLogViewModel)
+                }else{
+                    LoginPrompt()
+                }
             }
         }
 
@@ -68,32 +88,61 @@ class QuestLogFragment : Fragment() {
 
 @Composable
 fun TaskAndQuestScreen(questLogViewModel: QuestLogViewModel) {
+    val db = FirebaseFirestore.getInstance()
+    val auth: FirebaseAuth = Firebase.auth
+
+    var questNameList: MutableList<String> = mutableListOf()
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         // Tasks Section
-        Text(text = "Tasks", fontSize = 24.sp)
+        //Text(text = "Tasks", fontSize = 24.sp)
+        /*
         Spacer(modifier = Modifier.height(8.dp))
 
         // Example of task items
         for (i in 1..3) {
             TaskItem(taskName = "Task $i")
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
+        */
+        //Spacer(modifier = Modifier.height(16.dp))
 
         // Quests Section
         Text(text = "Quests", fontSize = 24.sp)
         Spacer(modifier = Modifier.height(8.dp))
+        QuestItem("hi")
+       val query = db.collection("users")
+           .whereEqualTo("usernameString", "User Name")
+           .get()
+           .addOnSuccessListener { documents ->
+               for (document in documents) {
+                   Log.d(TAG, "${document.id} => ${document.data}")
+                   //questNameList.add("${document.data}")
+                   // Extract usernameString
+                   val username = document["usernameString"] as? String
 
-        // Example of quest items
-        for (i in 1..3) {
-            QuestItem(questName = "Quest $i")
+                   // Save to the mutable list if not null
+                   username?.let {
+                       questNameList.add(it)
+                   }
+
+
+               }
+           }
+           .addOnFailureListener { exception ->
+               Log.w(TAG, "Error getting documents: ", exception)
+           }
+       }
+        if (questNameList.isEmpty()){
+            Text("gg")
         }
-
+        questNameList.forEach { quest ->
+            QuestItem(quest)
+            Text("1")
+        }
         Spacer(modifier = Modifier.height(16.dp))
 
 
-    }
 }
+
 
 @Composable
 fun TaskItem(taskName: String) {
@@ -106,6 +155,7 @@ fun TaskItem(taskName: String) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(text = taskName)
+            Spacer(modifier = Modifier.width(5.dp))
             Text(text = "✓", modifier = Modifier.clickable { /* Handle check */ })
         }
     }
@@ -122,6 +172,7 @@ fun QuestItem(questName: String) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(text = questName)
+            Spacer(modifier = Modifier.width(5.dp))
             Row {
                 Text(text = "✓", modifier = Modifier.clickable { /* Handle check */ })
                 Spacer(modifier = Modifier.width(8.dp))
@@ -131,3 +182,24 @@ fun QuestItem(questName: String) {
     }
 }
 
+@Composable
+fun LoginPrompt() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = "Please log in to view this content.", style = MaterialTheme.typography.bodyLarge)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+
+    }
+}
+
+fun isUserLoggedIn(context: Context): Boolean {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+    return sharedPreferences.getBoolean("isLoggedIn", false) // Default is false
+}
