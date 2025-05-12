@@ -3,24 +3,44 @@ package edu.hkust.qust.ui.newquest
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,11 +49,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import edu.hkust.qust.databinding.FragmentNewquestBinding
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Calendar
+import kotlin.toString
 
 
 class NewQuestFragment : Fragment() {
@@ -43,6 +74,24 @@ class NewQuestFragment : Fragment() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
+
+    override fun onStart() {
+        super.onStart()
+        val auth = Firebase.auth
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            val testEmail = "haris@gmail.com"
+            val testPassword = "testing"
+            auth.signInWithEmailAndPassword(testEmail, testPassword)
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        Log.d("NewQuestFragment", "Sign-in successful")
+                    } else {
+                        Log.e("NewQuestFragment", "Sign-in failed: ${task.exception?.message}")
+                    }
+                }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -82,78 +131,417 @@ class NewQuestFragment : Fragment() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun TimeDial(
+    onConfirm: (hour: Int, minute: Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val currentTime = Calendar.getInstance()
+
+    val timePickerState = rememberTimePickerState(
+        initialHour = currentTime.get(Calendar.HOUR_OF_DAY),
+        initialMinute = currentTime.get(Calendar.MINUTE),
+        is24Hour = true,
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .background(MaterialTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            TimePicker(
+                state = timePickerState,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row {
+                Button(onClick = onDismiss) {
+                    Text("Dismiss")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = { onConfirm(timePickerState.hour, timePickerState.minute) }) {
+                    Text("Confirm")
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DatePicker(
+    onDateSelected: (Long?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val datePickerState = rememberDatePickerState()
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                onDateSelected(datePickerState.selectedDateMillis)
+                onDismiss()
+            }) {
+                Text("OK")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    ) {
+        DatePicker(state = datePickerState)
+    }
+}
+
+fun formatDeadline(dateMillis: Long?, time: Pair<Int, Int>?): String {
+    if (dateMillis == null && time == null) return ""
+    val calendar = Calendar.getInstance()
+    dateMillis?.let { calendar.timeInMillis = it }
+    val day = calendar.get(Calendar.DAY_OF_MONTH)
+    val month = calendar.getDisplayName(Calendar.MONTH, Calendar.SHORT, java.util.Locale.getDefault())
+    val year = calendar.get(Calendar.YEAR)
+    val hour = time?.first ?: 0
+    val minute = time?.second ?: 0
+    return String.format("%02d %s. %d - %02d:%02d", day, month, year, hour, minute)
+}
+
+// Firebase Functions
+
+fun convertStringToTimestamp(dateString: String): Long? {
+    return try {
+        val formatter = DateTimeFormatter.ofPattern("dd MMM. yyyy - HH:mm")
+        val localDateTime = LocalDateTime.parse(dateString, formatter)
+        localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+fun createQuest(
+    questName: String,
+    questDescription: String,
+    type: String,
+    deadline: String? = null,
+    duration: String? = null,
+    quantity: String? = null,
+    onSuccess: (String) -> Unit, // Accepts a String parameter
+    onFailure: (Exception) -> Unit
+) {
+    val aut = Firebase.auth
+    val currentUser = aut.currentUser
+
+    if (currentUser == null) {
+        onFailure(Exception("User is not logged in"))
+        return
+    }
+
+    // Payload Preparation
+    val questJSON = when (type) {
+        "None" -> JSONObject().apply {
+            put("questNameString", questName)
+            put("questDescriptionString", questDescription)
+        }
+        "Quantitiy" -> JSONObject().apply {
+            put("questNameString", questName)
+            put("questDescriptionString", "Quantity task of $quantity, with description: $questDescription")
+        }
+        "Duration" -> JSONObject().apply {
+            put("questNameString", questName)
+            put("questDescriptionString", "Duration task of $duration, with description: $questDescription")
+        }
+        "Deadline" -> JSONObject().apply {
+            put("questNameString", questName)
+            put("questDescriptionString", questDescription)
+            put("questDeadlineString", convertStringToTimestamp(deadline.toString()))
+        }
+        else -> JSONObject() // Default case to ensure questJSON is always initialized
+    }
+
+    Log.d("NewQuestFragment", "questJSON: $questJSON")
+
+    currentUser.getIdToken(true).addOnCompleteListener { task ->
+        if (task.isSuccessful) {
+            val idToken = task.result?.token
+            val apiUrl = "https://createquest-saoopb5pya-df.a.run.app"
+
+            Thread {
+                try {
+                    val url = URL(apiUrl)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.requestMethod = "POST"
+                    connection.setRequestProperty("Authorization", "Bearer $idToken")
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    connection.doOutput = true
+
+                    val outputStream = connection.outputStream
+                    outputStream.write(questJSON.toString().toByteArray())
+                    outputStream.flush()
+                    outputStream.close()
+
+                    if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                        val response = connection.inputStream.bufferedReader().use { it.readText() }
+                        onSuccess(response) // Pass the response data to the success callback
+                    } else {
+                        onFailure(Exception("Failed to create quest: ${connection.responseMessage}"))
+                    }
+                } catch (e: Exception) {
+                    onFailure(e)
+                }
+            }.start()
+        } else {
+            onFailure(task.exception ?: Exception("Failed to get ID token"))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
     var name by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
-    var duration by remember { mutableStateOf("") }
+    var durationH by remember { mutableStateOf("") }
+    var durationM by remember { mutableStateOf("") }
     var deadline by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf("None") }
+    var description by remember { mutableStateOf("") }
 
-    Column(modifier = Modifier.padding(16.dp)) {
-        Text(text = "New Task", fontSize = 24.sp)
+    var expanded by remember { mutableStateOf(false) }
+    val types = listOf("None", "Quantity", "Duration", "Deadline")
 
-        Spacer(modifier = Modifier.height(16.dp))
+    var selectedDate by remember { mutableStateOf<Long?>(null) }
+    var selectedTime by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimeDial by remember { mutableStateOf(false) }
 
-        // Name Input
-        Text(text = "Name")
-        TextField(
-            value = name,
-            onValueChange = { name = it },
-            modifier = Modifier.fillMaxWidth()
-        )
+    Box(modifier = Modifier.fillMaxSize())
+    {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = "New Task", fontSize = 24.sp)
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // Quantity Input
-        Text(text = "Quantity")
-        TextField(
-            value = quantity,
-            onValueChange = { quantity = it },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Duration Input
-        Text(text = "Duration")
-        TextField(
-            value = duration,
-            onValueChange = { duration = it },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Deadline Input
-        Text(text = "Deadline")
-        TextField(
-            value = deadline,
-            onValueChange = { deadline = it },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Type Dropdown
-        Text(text = "Type")
-        ExposedDropdownMenuBox(
-            expanded = false,
-            onExpandedChange = { /* handle dropdown expansion */ }
-        ) {
+            // Name Input
+            Text(text = "Name")
             TextField(
-                value = selectedType,
-                onValueChange = { },
-                readOnly = true,
-                modifier = Modifier.fillMaxWidth(),
-                trailingIcon = {
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                }
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
             )
-            // Add dropdown items here
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Quantity Input
+            if (selectedType == "Quantity") {
+                Text(text = "Quantity")
+                TextField(
+                    value = quantity,
+                    onValueChange = {
+                        quantity = it
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    isError = quantity.toIntOrNull() == null || quantity.toInt() < 0
+                )
+            }
+
+            // Duration Input
+            if (selectedType == "Duration") {
+                Text(text = "Duration")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Hours",
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                    TextField(
+                        value = durationH,
+                        onValueChange = {
+                            durationH = it
+                        },
+                        modifier = Modifier.width(80.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        isError = durationH.toIntOrNull() == null || durationH.toInt() < 0
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "Minutes",
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                    TextField(
+                        value = durationM,
+                        onValueChange = {
+                            durationM = it
+                        },
+                        modifier = Modifier.width(80.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        isError = durationM.toIntOrNull() == null || durationM.toInt() < 0 || durationM.toInt() > 59
+                    )
+                }
+            }
+
+
+            // Deadline Input
+            if (selectedType == "Deadline") {
+                Text(text = "Deadline")
+                Row {
+                    TextField(
+                        value = deadline,
+                        onValueChange = { /* No-op since this is read-only */ },
+                        readOnly = true,
+                        modifier = Modifier
+                            .padding(vertical = 8.dp),
+                        label = { Text("Deadline") },
+                        placeholder = { Text("Select a deadline") },
+                        singleLine = true
+                    )
+                    Button(onClick = {showDatePicker = true}, modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .align(Alignment.CenterVertically)) {Text("+")}
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Type Dropdown
+            Text(text = "Type")
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded }
+            ) {
+                TextField(
+                    value = selectedType,
+                    onValueChange = { },
+                    readOnly = true,
+                    modifier = Modifier.menuAnchor(),
+                    trailingIcon = {
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                    }
+                )
+                // Add dropdown items here
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    types.forEach {type ->
+                        DropdownMenuItem(
+                            text = { Text(text = type) },
+                            onClick = {
+                                // Handle item click
+                                selectedType = type
+                                expanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Description
+            Text(text = "Description")
+            TextField(
+                value = description,
+                onValueChange = { description = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp),
+                singleLine = false,
+                maxLines = 3
+            )
         }
+        FloatingActionButton(
+            onClick = {
+                // Input Validation
+                when (selectedType) {
+                    "None" -> {
+                        if (name.isBlank() || description.isBlank()) {
+                            // Show error (e.g., Toast or Snackbar)
+                            return@FloatingActionButton
+                        }
+                    }
+                    "Quantity" -> {
+                        if (name.isBlank() || quantity.isBlank() || description.isBlank()) {
+                            // Show error (e.g., Toast or Snackbar)
+                            return@FloatingActionButton
+                        }
+                    }
+                    "Duration" -> {
+                        if (name.isBlank() || durationH.isBlank() || durationM.isBlank() || description.isBlank()) {
+                            // Show error (e.g., Toast or Snackbar)
+                            return@FloatingActionButton
+                        }
+                    }
+                    "Deadline" -> {
+                        if (name.isBlank() || deadline.isBlank() || description.isBlank()) {
+                            // Show error (e.g., Toast or Snackbar)
+                            return@FloatingActionButton
+                        }
+                    }
+                    else -> {
+                        return@FloatingActionButton
+                    }
+                }
 
-        Spacer(modifier = Modifier.height(16.dp))
+                createQuest(
+                    questName = name,
+                    questDescription = description,
+                    type = selectedType,
+                    deadline = if (selectedType == "Deadline") deadline else null,
+                    duration = if (selectedType == "Duration") "${durationH}h ${durationM}m" else null,
+                    quantity = if (selectedType == "Quantity") quantity else null,
+                    onSuccess = { response ->
+                        Log.d("NewQuest", "API Response: ${response}")
+                    },
+                    onFailure = { error ->
+                        // Handle failure (e.g., show an error message)
+                        Log.e("NewQuestFragment", "Failed to create quest: ${error.message}")
+                    }
+                )
+            },
+            modifier = Modifier
+                .padding(16.dp)
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+        ) { Text("+") }
+    }
 
+    if (showDatePicker) {
+        DatePicker(
+            onDateSelected = { dateMillis ->
+                selectedDate = dateMillis
+                showDatePicker = false
+                showTimeDial = true
+            },
+            onDismiss = {
+                showDatePicker = false
+                showTimeDial = true
+            }
+        )
+    }
+
+    if (showTimeDial) {
+        TimeDial(
+            onConfirm = { hour, minute ->
+                selectedTime = hour to minute
+                showTimeDial = false
+                deadline = formatDeadline(selectedDate, selectedTime)
+            },
+            onDismiss = {
+                showTimeDial = false
+                deadline = formatDeadline(selectedDate, selectedTime)
+            }
+        )
     }
 }
 

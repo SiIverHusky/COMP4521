@@ -79,9 +79,12 @@ class ProfileFragment : Fragment() {
         super.onStart()
         // Check if user is signed in (non-null) and update UI accordingly.
         val currentUser = auth.currentUser
+        if (currentUser != null) {
+            // User is signed in
+        }
+
         //updateUI(currentUser)
     }
-
 
 
     override fun onDestroyView() {
@@ -158,6 +161,10 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
 
             Button(
                 onClick = {
+                    if (email.isEmpty() || password.isEmpty()) {
+                        isLoginError = true
+                        return@Button
+                    }
                     val auth = Firebase.auth
                     auth.signInWithEmailAndPassword(email, password)
                         .addOnCompleteListener { task ->
@@ -165,8 +172,12 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                                 isLoginError = true
                             }else{
                                 isLoggedIn = true
+
                                 // Save logged-in state
                                 saveLoginStatus(requireContext, true)
+                                val user = auth.currentUser
+                                Log.d("ProfileFragment", "User: ${user?.email}")
+
                             }
                         }
                 },
