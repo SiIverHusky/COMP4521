@@ -3,6 +3,7 @@ package edu.hkust.qust.ui.profile
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -31,6 +32,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.firestore
 import edu.hkust.qust.databinding.FragmentProfileBinding
 
 
@@ -42,7 +44,7 @@ class ProfileFragment : Fragment() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    private lateinit var auth: FirebaseAuth;
+    private lateinit var auth: FirebaseAuth
 
 
 
@@ -75,7 +77,7 @@ class ProfileFragment : Fragment() {
 
 
 
-    public override fun onStart() {
+    override fun onStart() {
         super.onStart()
         // Check if user is signed in (non-null) and update UI accordingly.
         val currentUser = auth.currentUser
@@ -104,10 +106,18 @@ class ProfileFragment : Fragment() {
 @Composable
 fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
     var isLoggedIn by remember { mutableStateOf(false) }
+    var isSignUpMode by remember { mutableStateOf(false) }
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoginError by remember { mutableStateOf(false) }
+
+    var username by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var isSignUpError by remember { mutableStateOf(false) }
+
+
+
 
     isLoggedIn = isUserLoggedIn(requireContext)
     Column(modifier = Modifier
@@ -132,7 +142,18 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                 Text("Logout")
             }
         }else{
-            Text("Login", fontSize = 24.sp)
+            Text(if (isSignUpMode) "Sign up" else "Login", fontSize = 24.sp)
+
+            if (isSignUpMode)
+            {
+                Spacer(modifier = Modifier.height(16.dp))
+                TextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Username") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -153,37 +174,120 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                 visualTransformation = PasswordVisualTransformation()
             )
 
+            if (isSignUpMode)
+            {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    label = { Text("Confirm Password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation()
+                )
+            }
+
             if (isLoginError) {
                 Text("Invalid email or password", color = MaterialTheme.colorScheme.error)
+            }
+
+            if (isSignUpError) {
+                Text("Invalid sign up details", color = MaterialTheme.colorScheme.error)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (!isSignUpMode)
+            {
+                Button(
+                    onClick = {
+                        if (email.isEmpty() || password.isEmpty()) {
+                            isLoginError = true
+                            return@Button
+                        }
+                        val auth = Firebase.auth
+                        auth.signInWithEmailAndPassword(email, password)
+                            .addOnCompleteListener { task ->
+                                if (!task.isSuccessful) {
+                                    isLoginError = true
+                                }else{
+                                    isLoggedIn = true
+
+                                    // Save logged-in state
+                                    saveLoginStatus(requireContext, true)
+                                    val user = auth.currentUser
+                                    Log.d("ProfileFragment", "User: ${user?.email}")
+
+                                }
+                            }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Login")
+                }
+            } else {
+                Button(
+                    onClick = {
+                        if (username.isEmpty() || email.isEmpty() || password.isEmpty() || confirmPassword.isEmpty()) {
+                            isSignUpError = true
+                            Log.d("ProfileFragment", "Error: Empty fields")
+                            return@Button
+                        }
+                        if (password != confirmPassword) {
+                            isSignUpError = true
+                            Log.d("ProfileFragment", "Error: Passwords do not match")
+                            return@Button
+                        }
+
+                        val auth = Firebase.auth
+                        val db = Firebase.firestore
+
+                        db.collection("users")
+                            .whereEqualTo("usernameString", username)
+                            .get()
+                            .addOnSuccessListener { documents ->
+                                if (documents.isEmpty) {
+                                    auth.createUserWithEmailAndPassword(email, password)
+                                        .addOnCompleteListener { task ->
+                                            if (task.isSuccessful) {
+                                                val user = auth.currentUser
+                                                val userData = hashMapOf(
+                                                    "usernameString" to username,
+                                                    "emailString" to email
+                                                )
+                                                db.collection("users").document(user!!.uid)
+                                                    .set(userData)
+                                                    .addOnSuccessListener {
+                                                        Log.d("ProfileFragment", "User data saved")
+                                                        isLoggedIn = true
+                                                        saveLoginStatus(requireContext, true)
+                                                    }
+                                            } else {
+                                                isSignUpError = true
+                                                Log.d("ProfileFragment", "Error: ${task.exception?.message}")
+                                            }
+                                        }
+                                } else {
+                                    isSignUpError = true
+                                    Log.d("ProfileFragment", "Error: Username already exists")
+                                }
+                            }
+
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Sign Up")
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
                 onClick = {
-                    if (email.isEmpty() || password.isEmpty()) {
-                        isLoginError = true
-                        return@Button
-                    }
-                    val auth = Firebase.auth
-                    auth.signInWithEmailAndPassword(email, password)
-                        .addOnCompleteListener { task ->
-                            if (!task.isSuccessful) {
-                                isLoginError = true
-                            }else{
-                                isLoggedIn = true
-
-                                // Save logged-in state
-                                saveLoginStatus(requireContext, true)
-                                val user = auth.currentUser
-                                Log.d("ProfileFragment", "User: ${user?.email}")
-
-                            }
-                        }
+                    isSignUpMode = !isSignUpMode
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Login")
+                Text(if (isSignUpMode) "Switch to Login" else "Switch to Sign Up")
             }
         }
     }
