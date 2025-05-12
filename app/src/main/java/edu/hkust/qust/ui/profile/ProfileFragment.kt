@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.google.firebase.Firebase
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
@@ -313,7 +314,7 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                                                 var user = auth.currentUser
                                                 val userData = hashMapOf(
                                                     "accountLevelNumber" to 1,
-                                                    "createdAtTimestamp" to System.currentTimeMillis(),
+                                                    "createdAtTimestamp" to Timestamp.now(),
                                                     "experiencePointNumber" to 0,
                                                     "healthNumber" to 100,
                                                     "intelligenceNumber" to 1,
