@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.util.Log
 
 import android.view.LayoutInflater
 import android.view.View
@@ -41,10 +42,14 @@ import androidx.lifecycle.ViewModelProvider
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.firestore
 import edu.hkust.qust.R
 import edu.hkust.qust.databinding.FragmentDashboardBinding
 import edu.hkust.qust.ui.profile.UserDataStore
 import kotlinx.coroutines.delay
+import kotlin.collections.get
+import kotlin.text.get
+import kotlin.text.toInt
 
 
 class DashboardFragment : Fragment() {
@@ -83,11 +88,11 @@ class DashboardFragment : Fragment() {
             setContent {
                 //SpriteAnimation(context = requireContext()) // Pass context
                 if(isUserLoggedIn(requireContext())){
-                    UserProfileScreen(dashboardViewModel, requireContext(), isAnimating, viewLifecycleOwner)
+                    val username = getUsername(requireContext())
+                    UserProfileScreen(dashboardViewModel, requireContext(), isAnimating, viewLifecycleOwner, username)
                 }else{
                     LoginPrompt()
                 }
-
             }
         }
 
@@ -115,7 +120,8 @@ fun UserProfileScreen(
     dashboardViewModel: DashboardViewModel,
     requireContext: Context,
     isAnimating: Boolean,
-    viewLifecycleOwner: LifecycleOwner
+    viewLifecycleOwner: LifecycleOwner,
+    usernameStorage: String?
 ) {
     //Spacer(Modifier.padding(vertical = 10.dp))
     Column(
@@ -128,10 +134,50 @@ fun UserProfileScreen(
         // Profile Image Placeholder
         SpriteAnimation(requireContext, isAnimating)
 
+        Log.d("Dashboard", "User received from local: ${UserDataStore.username} / ${UserDataStore.accountLevel}")
+        Log.d("Dashboard", "Current Firebase Auth User: ${Firebase.auth.currentUser?.email} / ${Firebase.auth.currentUser?.uid}")
+
+//        Data handling
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            val db = Firebase.firestore
+            Log.d("Dashboard", "Is Logged in")
+            Log.d("Dashboard", "Username: $usernameStorage")
+            if (usernameStorage != null) {
+                db.collection("users")
+                    .whereEqualTo("usernameString", usernameStorage)
+                    .get()
+                    .addOnSuccessListener { documents ->
+                        if (!documents.isEmpty) {
+                            val userDoc = documents.documents[0]
+                            val userId = userDoc.id
+
+                            // Authorize session by updating UserDataStore
+                            UserDataStore.username = userDoc.getString("usernameString")
+                            UserDataStore.accountLevel = userDoc.getLong("accountLevelNumber")?.toInt()
+                            UserDataStore.experiencePoints = userDoc.getLong("experiencePointNumber")?.toInt()
+                            UserDataStore.health = userDoc.getLong("healthNumber")?.toInt()
+                            UserDataStore.strength = userDoc.getLong("strengthNumber")?.toInt()
+                            UserDataStore.intelligence = userDoc.getLong("intelligenceNumber")?.toInt()
+
+
+                            Log.d("Dashboard", "User session authorized for: $usernameStorage")
+                        } else {
+                            Log.d("Dashboard", "No user found with username: $usernameStorage")
+                        }
+                    }
+                    .addOnFailureListener { exception ->
+                        Log.d("Dashboard", "Error fetching user: ${exception.message}")
+                    }
+            } else {
+                Log.d("Dashboard", "Username is null, cannot authorize session")
+            }
+        }
+
 
         // Name and Class
-        val name = UserDataStore.username ?: "Unknown"
-        Text(name, Modifier.padding(top = 10.dp, bottom = 5.dp), fontSize = 24.sp)
+        val name = UserDataStore.username ?: usernameStorage
+//        Log.d("Dashboard", "Username: $name")
+        Text(name.toString(), Modifier.padding(top = 10.dp, bottom = 5.dp), fontSize = 24.sp)
         Text("Character class: Knight", Modifier.padding(top = 15.dp, bottom = 5.dp), fontSize = 18.sp)
 
         // Level Progress Bar
@@ -139,7 +185,9 @@ fun UserProfileScreen(
         Text("Lv$level", Modifier.padding(top = 15.dp, bottom = 3.dp))
         LinearProgressIndicator(
             progress = { UserDataStore.experiencePoints?.div(100f) ?:  0f},
-            modifier = Modifier.fillMaxWidth().padding(top = 3.dp, bottom = 10.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 3.dp, bottom = 10.dp)
         )
 
         // Other Progress Bars
@@ -147,21 +195,27 @@ fun UserProfileScreen(
         Text("Strength: $strength")
         LinearProgressIndicator(
             progress = { strength / 100f },
-            modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 5.dp, bottom = 10.dp)
         )
 
         val intelligence = UserDataStore.intelligence ?: 0
         Text("Intelligence: $intelligence")
         LinearProgressIndicator(
             progress = { intelligence / 100f },
-            modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 5.dp, bottom = 10.dp)
         )
 
         val health = UserDataStore.health ?: 0
         Text("HP: $health")
         LinearProgressIndicator(
             progress = { health / 100f },
-            modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 10.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 5.dp, bottom = 10.dp)
         )
 
         // Current Task
@@ -246,3 +300,13 @@ fun isUserLoggedIn(context: Context): Boolean {
     val sharedPreferences: SharedPreferences = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
     return sharedPreferences.getBoolean("isLoggedIn", false) // Default is false
 }
+
+
+fun getUsername(context: Context): String? {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+    return sharedPreferences.getString("username", null) // Default is null
+}
+
+
+
+

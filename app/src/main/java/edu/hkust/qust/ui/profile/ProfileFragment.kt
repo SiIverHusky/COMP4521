@@ -134,7 +134,18 @@ private fun clearUserData() {
     UserDataStore.intelligence = null
 }
 
+fun saveUsername(context: Context, username: String) {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+    with(sharedPreferences.edit()) {
+        putString("username", username)
+        apply()
+    }
+}
 
+fun getUsername(context: Context): String? {
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+    return sharedPreferences.getString("username", null) // Default is null
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,12 +166,36 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
     isLoggedIn = isUserLoggedIn(requireContext)
 
     if (isLoggedIn) {
-        username = UserDataStore.username.toString()
+//        if (UserDataStore.username == null)
+//        {
+//            val auth = Firebase.auth
+//            val db = Firebase.firestore
+//
+//            val userId = auth.currentUser?.uid
+//            if (userId != null) {
+//                db.collection("users").document(userId).get()
+//                    .addOnSuccessListener { document ->
+//                        if (document != null) {
+//                            UserDataStore.username = document.getString("username")
+//                            username = UserDataStore.username.toString()
+//                            UserDataStore.accountLevel = document.getLong("accountLevel")?.toInt()
+//                            UserDataStore.experiencePoints = document.getLong("experiencePoints")?.toInt()
+//                            UserDataStore.strength = document.getLong("strength")?.toInt()
+//                            UserDataStore.intelligence = document.getLong("intelligence")?.toInt()
+//                            UserDataStore.health = document.getLong("health")?.toInt()
+//                        }
+//                    }
+//            }
+//        } else {
+//            username = UserDataStore.username.toString()
+//        }
+        username = getUsername(requireContext).toString()
     }
     Column(modifier = Modifier
         .fillMaxWidth()
         .padding(16.dp)){
         if(isLoggedIn){
+            username = getUsername(requireContext).toString()
             Text("Welcome, ${username}", fontSize = 24.sp)
             // Add more user profile details here
 
@@ -168,6 +203,7 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
 
             Button(
                 onClick = {
+                    saveUsername(requireContext, "")
                     FirebaseAuth.getInstance().signOut()
                     // Trigger a recomposition to show the LoginScreen
                     saveLoginStatus(requireContext, false)
@@ -260,7 +296,10 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                                         .addOnSuccessListener { document ->
                                             if (document.exists()) {
                                                 var userData = document.data
-                                                username = userData?.get("usernameString") as String
+                                                Log.d("ProfileFragment", "DocumentSnapshot data: ${document.data}")
+                                                username = document.getString("usernameString").toString()
+                                                Log.d("ProfileFragment", "Saving to SharedPreference")
+                                                saveUsername(requireContext, username)
                                                 UserDataStore.username = document.getString("usernameString")
                                                 UserDataStore.accountLevel = document.getLong("accountLevelNumber")?.toInt()
                                                 UserDataStore.experiencePoints = document.getLong("experiencePointNumber")?.toInt()
@@ -311,6 +350,7 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                                     auth.createUserWithEmailAndPassword(email, password)
                                         .addOnCompleteListener { task ->
                                             if (task.isSuccessful) {
+                                                saveUsername(requireContext, username)
                                                 var user = auth.currentUser
                                                 val userData = hashMapOf(
                                                     "accountLevelNumber" to 1,
