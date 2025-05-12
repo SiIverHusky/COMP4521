@@ -18,10 +18,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
@@ -32,9 +35,10 @@ import androidx.lifecycle.ViewModelProvider
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
-import com.google.firebase.firestore.Filter
 import com.google.firebase.firestore.FirebaseFirestore
 import edu.hkust.qust.databinding.FragmentQuestlogBinding
+
+
 
 class QuestLogFragment : Fragment() {
 
@@ -91,7 +95,8 @@ fun TaskAndQuestScreen(questLogViewModel: QuestLogViewModel) {
     val db = FirebaseFirestore.getInstance()
     val auth: FirebaseAuth = Firebase.auth
 
-    var questNameList: MutableList<String> = mutableListOf()
+    var questNameList = remember { mutableStateListOf<String>() }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         // Tasks Section
         //Text(text = "Tasks", fontSize = 24.sp)
@@ -108,36 +113,40 @@ fun TaskAndQuestScreen(questLogViewModel: QuestLogViewModel) {
         // Quests Section
         Text(text = "Quests", fontSize = 24.sp)
         Spacer(modifier = Modifier.height(8.dp))
-        QuestItem("hi")
-       val query = db.collection("users")
-           .whereEqualTo("usernameString", "User Name")
-           .get()
-           .addOnSuccessListener { documents ->
-               for (document in documents) {
-                   Log.d(TAG, "${document.id} => ${document.data}")
-                   //questNameList.add("${document.data}")
-                   // Extract usernameString
-                   val username = document["usernameString"] as? String
+        //QuestItem("hi", questNameList)
+        //QuestItem("g", questNameList)
+        val query = db.collection("questLog")
+            .whereEqualTo("userIdString", auth.currentUser?.uid)
+            .get()
+            .addOnSuccessListener { documents ->
+                for (document in documents) {
+                    Log.d(TAG, "${document.id} => ${document.data}")
+                    //questNameList.add("${document.data}")
+                    // Extract usernameString
+                    val username = document["questDescriptionString"] as? String
+                    Log.d("query name", username.toString())
+                    // Save to the mutable list if not null
+                    username?.let {
+                        Log.d("add list", questNameList.toString())
+                        if(!questNameList.contains(it.toString())) {
+                            questNameList.add(it.toString())
+                        }
 
-                   // Save to the mutable list if not null
-                   username?.let {
-                       questNameList.add(it)
-                   }
+                    }
 
 
-               }
-           }
-           .addOnFailureListener { exception ->
-               Log.w(TAG, "Error getting documents: ", exception)
-           }
-       }
-        if (questNameList.isEmpty()){
-            Text("gg")
+                }
+            }
+            .addOnFailureListener { exception ->
+                Log.w(TAG, "Error getting documents: ", exception)
+            }
+        for (quest in questNameList) {
+            QuestItem(quest, questNameList)
+            Log.d(TAG,quest)
         }
-        questNameList.forEach { quest ->
-            QuestItem(quest)
-            Text("1")
+
         }
+
         Spacer(modifier = Modifier.height(16.dp))
 
 
@@ -161,22 +170,27 @@ fun TaskItem(taskName: String) {
     }
 }
 
+
 @Composable
-fun QuestItem(questName: String) {
+fun QuestItem(questName: String, questNameList: MutableList<String> = mutableListOf()) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(text = questName)
-            Spacer(modifier = Modifier.width(5.dp))
-            Row {
-                Text(text = "✓", modifier = Modifier.clickable { /* Handle check */ })
+
+            Row(horizontalArrangement = Arrangement.End){
+                Button (onClick = {questNameList.remove(questName)}, modifier = Modifier.width(85.dp)){
+                    Text(text = "Done")
+                }
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "✗", modifier = Modifier.clickable { /* Handle uncheck */ })
+                Button (onClick = {questNameList.remove(questName)}, modifier = Modifier.width(88.dp)){
+                    Text(text = "Delete")
+                }
             }
         }
     }
