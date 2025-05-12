@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -274,7 +275,7 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimeDial by remember { mutableStateOf(false) }
 
-    Box()
+    Box(modifier = Modifier.fillMaxSize())
     {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = "Enter Quest Details", fontSize = 24.sp)
@@ -491,9 +492,13 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
                 }
             },
             modifier = Modifier
-                .padding(16.dp)
+                .padding(PaddingValues(
+                    start = 16.dp,
+                    top = 16.dp,
+                    end = 16.dp,
+                    bottom = 64.dp // Specify a different bottom padding
+                ))
                 .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
         ) { Text("+") }
     }
 
