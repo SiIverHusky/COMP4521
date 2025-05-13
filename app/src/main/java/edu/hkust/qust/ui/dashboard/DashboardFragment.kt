@@ -209,19 +209,19 @@ fun UserProfileScreen(
         )
 
         // Current Task
-        Column {
-            Text("Current Task", Modifier.padding(top = 35.dp, bottom = 5.dp), fontSize = 25.sp)
-            Text("2/5", fontSize = 20.sp)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Upcoming Tasks
-        Column {
-            Text("Upcoming", fontSize = 25.sp)
-            Text("2 days", Modifier.padding(start = 5.dp, top = 10.dp))
-            Text("1 week", Modifier.padding(start = 5.dp, top = 10.dp))
-        }
+//        Column {
+//            Text("Current Task", Modifier.padding(top = 35.dp, bottom = 5.dp), fontSize = 25.sp)
+//            Text("2/5", fontSize = 20.sp)
+//        }
+//
+//        Spacer(modifier = Modifier.height(16.dp))
+//
+//        // Upcoming Tasks
+//        Column {
+//            Text("Upcoming", fontSize = 25.sp)
+//            Text("2 days", Modifier.padding(start = 5.dp, top = 10.dp))
+//            Text("1 week", Modifier.padding(start = 5.dp, top = 10.dp))
+//        }
     }
 }
 
