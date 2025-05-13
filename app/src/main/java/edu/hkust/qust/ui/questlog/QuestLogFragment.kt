@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -37,7 +39,20 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import edu.hkust.qust.databinding.FragmentQuestlogBinding
-
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.graphics.RectangleShape
+import kotlin.collections.minusAssign
+import kotlin.compareTo
 
 
 class QuestLogFragment : Fragment() {
@@ -58,6 +73,8 @@ class QuestLogFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         auth = Firebase.auth
+        firestore = FirebaseFirestore.getInstance()
+
 
         val questLogViewModel =
             ViewModelProvider(this).get(QuestLogViewModel::class.java)
@@ -73,7 +90,7 @@ class QuestLogFragment : Fragment() {
         return ComposeView(requireContext()).apply {
             setContent {
                 if(isUserLoggedIn(requireContext())) {
-                    TaskAndQuestScreen(questLogViewModel)
+                    TaskAndQuestScreen(questLogViewModel, firestore, auth)
                 }else{
                     LoginPrompt()
                 }
@@ -91,110 +108,264 @@ class QuestLogFragment : Fragment() {
 
 
 @Composable
-fun TaskAndQuestScreen(questLogViewModel: QuestLogViewModel) {
-    val db = FirebaseFirestore.getInstance()
-    val auth: FirebaseAuth = Firebase.auth
+fun TaskAndQuestScreen(
+    questLogViewModel: QuestLogViewModel,
+    firestore: FirebaseFirestore,
+    auth: FirebaseAuth
+) {
+    var currentQuests by remember { mutableStateOf(listOf<Map<String, Any>>()) }
+    var completedQuests by remember { mutableStateOf(listOf<Map<String, Any>>()) }
 
-    var questNameList = remember { mutableStateListOf<String>() }
-
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // Tasks Section
-        //Text(text = "Tasks", fontSize = 24.sp)
-        /*
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Example of task items
-        for (i in 1..3) {
-            TaskItem(taskName = "Task $i")
-        }
-        */
-        //Spacer(modifier = Modifier.height(16.dp))
-
-        // Quests Section
-        Text(text = "Quests", fontSize = 24.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        //QuestItem("hi", questNameList)
-        //QuestItem("g", questNameList)
-        val query = db.collection("questLog")
-            .whereEqualTo("userIdString", auth.currentUser?.uid)
-            .get()
-            .addOnSuccessListener { documents ->
-                for (document in documents) {
-                    Log.d(TAG, "${document.id} => ${document.data}")
-                    //questNameList.add("${document.data}")
-                    // Extract usernameString
-                    val username = document["questDescriptionString"] as? String
-                    Log.d("query name", username.toString())
-                    // Save to the mutable list if not null
-                    username?.let {
-                        Log.d("add list", questNameList.toString())
-                        if(!questNameList.contains(it.toString())) {
-                            questNameList.add(it.toString())
-                        }
-
+    LaunchedEffect(Unit) {
+        val userId = auth.currentUser?.uid
+        if (userId != null) {
+            firestore.collection("questLog")
+                .whereEqualTo("userIdString", userId)
+                .addSnapshotListener { snapshots, exception ->
+                    if (exception != null) {
+                        Log.w("QuestLog", "Listen failed.", exception)
+                        return@addSnapshotListener
                     }
 
+                    if (snapshots != null) {
+                        val current = mutableListOf<Map<String, Any>>()
+                        val completed = mutableListOf<Map<String, Any>>()
 
+                        for (document in snapshots) {
+                            val quest = document.data.toMutableMap()
+                            quest["questId"] = document.id // Add document name to the quest map
+                            val status = quest["questStatusString"] as? String ?: "Unknown"
+                            if (status == "Completed") {
+                                completed.add(quest)
+                            } else if (status != "Canceled") {
+                                current.add(quest)
+                            }
+                        }
+
+                        currentQuests = current
+                        completedQuests = completed
+                    }
                 }
-            }
-            .addOnFailureListener { exception ->
-                Log.w(TAG, "Error getting documents: ", exception)
-            }
-        for (quest in questNameList) {
-            QuestItem(quest, questNameList)
-            Log.d(TAG,quest)
         }
+    }
 
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Current Quests Section
+        Text(text = "Current Quests", fontSize = 24.sp, modifier = Modifier.padding(bottom = 8.dp))
+        LazyColumn(modifier = Modifier.weight(2f)) {
+            items(currentQuests) { quest ->
+                QuestItem(quest, firestore, auth)
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-
-}
-
-
-@Composable
-fun TaskItem(taskName: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = taskName)
-            Spacer(modifier = Modifier.width(5.dp))
-            Text(text = "✓", modifier = Modifier.clickable { /* Handle check */ })
+        // Completed Quests Section
+        Text(text = "Completed Quests", fontSize = 24.sp, modifier = Modifier.padding(bottom = 8.dp))
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(completedQuests) { quest ->
+                QuestItem(quest, firestore, auth)
+            }
         }
     }
 }
 
-
 @Composable
-fun QuestItem(questName: String, questNameList: MutableList<String> = mutableListOf()) {
+fun QuestItem(quest: Map<String, Any>,
+              firestore: FirebaseFirestore,
+              auth: FirebaseAuth) {
+    val questName = quest["questNameString"] as? String ?: "Unknown Quest"
+    var questDescription = quest["questDescriptionString"] as? String ?: "No Description"
+    val deadlineTimestamp = quest["deadlineTimestamp"] as? Long
+    val questId = quest["questId"] as? String ?: "Unknown ID"
+    val questStatus = quest["questStatusString"] as? String ?: "Unknown Status"
+
+    val currentQuantity = quest["currentQuantity"] as? Int ?: 0
+    val totalQuantity = Regex("""Quantity task of (\d+),""").find(questDescription)?.groupValues?.get(1)?.toIntOrNull()
+    var remainingTime by remember { mutableStateOf(quest["remainingTime"] as? Long ?: 0L) }
+    var isTimerRunning by remember { mutableStateOf(false) }
+
+    // Determine quest type and extract relevant data
+    val questType: String
+    var additionalInfo: String? = null
+
+    when {
+        questDescription.startsWith("Quantity task of") -> {
+            questType = "Quantity"
+            val regex = Regex("""Quantity task of (\d+), with description: (.+)""")
+            val matchResult = regex.find(questDescription)
+            if (matchResult != null) {
+                val (total, description) = matchResult.destructured
+                questDescription = description
+                val current = quest["currentQuantity"] as? Int ?: 0
+                additionalInfo = "$current / $total"
+            }
+        }
+        questDescription.startsWith("Duration task of") -> {
+            questType = "Duration"
+            val regex = Regex("""Duration task of (\d+h \d+m), with description: (.+)""")
+            val matchResult = regex.find(questDescription)
+            if (matchResult != null) {
+                val (duration, description) = matchResult.destructured
+                questDescription = description
+                additionalInfo = formatTime(duration)
+            }
+        }
+        deadlineTimestamp != null -> {
+            questType = "Deadline"
+            additionalInfo = formatDeadline(deadlineTimestamp)
+        }
+        else -> {
+            questType = "None"
+        }
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = questName)
-
-            Row(horizontalArrangement = Arrangement.End){
-                Button (onClick = {questNameList.remove(questName)}, modifier = Modifier.width(85.dp)){
-                    Text(text = "Done")
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = questName, style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = questDescription, style = MaterialTheme.typography.bodyMedium)
+                additionalInfo?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = it, style = MaterialTheme.typography.bodySmall)
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button (onClick = {questNameList.remove(questName)}, modifier = Modifier.width(88.dp)){
-                    Text(text = "Delete")
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (questStatus != "Completed")
+                {
+                    IconButton(
+                        onClick = {
+                            firestore.collection("questLog").document(questId)
+                                .update("questStatusString", "Canceled")
+                                .addOnSuccessListener {
+                                    Log.d("QuestItem", "Quest successfully canceled.")
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e("QuestItem", "Error canceling quest", e)
+                                }
+                        },
+                        modifier = Modifier
+                            .size(48.dp) // Square button
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            when (questType) {
+                                "None", "Deadline", "Duration", "Quantity" -> {
+                                    firestore.collection("questLog").document(questId)
+                                        .update("questStatusString", "Completed")
+                                        .addOnSuccessListener {
+                                            Log.d("QuestItem", "Quest marked as complete.")
+                                        }
+                                        .addOnFailureListener { e ->
+                                            Log.e("QuestItem", "Error completing quest", e)
+                                        }
+                                }
+//                            "Duration" -> {
+//                                if (isTimerRunning) {
+//                                    isTimerRunning = false
+//                                    firestore.collection("questLog").document(questId)
+//                                        .update("remainingTime", remainingTime)
+//                                } else {
+//                                    isTimerRunning = true
+//                                    firestore.collection("questLog").document(questId)
+//                                        .update("remainingTime", remainingTime)
+//                                }
+//                            }
+//                            "Quantity" -> {
+//                                if (currentQuantity < totalQuantity!!) {
+//                                    firestore.collection("questLog").document(questId)
+//                                        .update("currentQuantity", currentQuantity + 1)
+//                                        .addOnSuccessListener {
+//                                            Log.d("QuestItem", "Quantity incremented.")
+//                                            if (currentQuantity + 1 == totalQuantity) {
+//                                                firestore.collection("questLog").document(questId)
+//                                                    .update("questStatusString", "Completed")
+//                                            }
+//                                        }
+//                                        .addOnFailureListener { e ->
+//                                            Log.e("QuestItem", "Error incrementing quantity", e)
+//                                        }
+//                                }
+//                            }
+                            }
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Complete",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+//                        Text(
+//                            text = when (questType) {
+//                                "None", "Deadline", "Quantity", "Duration" -> "Complete"
+////                            "Quantity" -> "Increment"
+////                            "Duration" -> if (isTimerRunning) "Stop" else "Start"
+//                                else -> "Action"
+//                            }
+//                        )
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(isTimerRunning) {
+        if (isTimerRunning) {
+            while (remainingTime > 0) {
+                kotlinx.coroutines.delay(1000L)
+                remainingTime -= 1000L
+                firestore.collection("questLog").document(questId)
+                    .update("remainingTime", remainingTime)
+                if (remainingTime <= 0) {
+                    isTimerRunning = false
+                    firestore.collection("questLog").document(questId)
+                        .update("questStatusString", "Completed")
                 }
             }
         }
     }
 }
+
+// Helper function to format remaining time (hh:mm:ss)
+fun formatTime(duration: String): String {
+    val regex = Regex("""(\d+)h (\d+)m""")
+    val matchResult = regex.find(duration)
+    return if (matchResult != null) {
+        val (hours, minutes) = matchResult.destructured
+        String.format("%02d:%02d:00", hours.toInt(), minutes.toInt())
+    } else {
+        "00:00:00" // Default if parsing fails
+    }
+}
+
+// Helper function to format deadline (yyyy-MM-dd HH:mm)
+fun formatDeadline(timestamp: Long): String {
+    val date = java.util.Date(timestamp)
+    val format = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+    return format.format(date)
+}
+
 
 @Composable
 fun LoginPrompt() {
