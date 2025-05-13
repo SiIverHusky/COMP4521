@@ -10,6 +10,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
@@ -45,14 +45,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.RectangleShape
+import com.google.firebase.firestore.FieldValue
 import kotlin.collections.minusAssign
 import kotlin.compareTo
+import kotlin.text.get
 
 
 class QuestLogFragment : Fragment() {
@@ -120,7 +125,6 @@ fun TaskAndQuestScreen(
         val userId = auth.currentUser?.uid
         if (userId != null) {
             firestore.collection("questLog")
-                .whereEqualTo("userIdString", userId)
                 .addSnapshotListener { snapshots, exception ->
                     if (exception != null) {
                         Log.w("QuestLog", "Listen failed.", exception)
@@ -135,13 +139,22 @@ fun TaskAndQuestScreen(
                             val quest = document.data.toMutableMap()
                             quest["questId"] = document.id // Add document name to the quest map
                             val status = quest["questStatusString"] as? String ?: "Unknown"
-                            if (status == "Completed") {
+                            val questUserId = quest["userIdString"] as? String
+                            val partyIdArray = quest["partyIdArray"] as? List<*>
+
+                            // Check if the quest is a CoopQuestItem
+                            val isCoopQuest = questUserId != userId && partyIdArray?.contains(userId) == true
+
+                            if (status == "Completed" && (isCoopQuest || userId == questUserId)) {
+                                Log.d("QuestLog", "Completed quest: $quest")
                                 completed.add(quest)
-                            } else if (status != "Canceled") {
+                            } else if (status != "Canceled" && (isCoopQuest || userId == questUserId)) {
+                                Log.d("QuestLog", "Current quest: $quest")
                                 current.add(quest)
                             }
                         }
-
+                        Log.d("QuestLog", "Current quests: $current")
+                        Log.d("QuestLog", "Completed quests: $completed")
                         currentQuests = current
                         completedQuests = completed
                     }
@@ -154,7 +167,12 @@ fun TaskAndQuestScreen(
         Text(text = "Current Quests", fontSize = 24.sp, modifier = Modifier.padding(bottom = 8.dp))
         LazyColumn(modifier = Modifier.weight(2f)) {
             items(currentQuests) { quest ->
-                QuestItem(quest, firestore, auth)
+                val questUserId = quest["userIdString"] as? String
+                if (questUserId == auth.currentUser?.uid) {
+                    QuestItem(quest, firestore, auth)
+                } else {
+                    CoopQuestItem(quest, firestore, auth)
+                }
             }
         }
 
@@ -164,7 +182,12 @@ fun TaskAndQuestScreen(
         Text(text = "Completed Quests", fontSize = 24.sp, modifier = Modifier.padding(bottom = 8.dp))
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(completedQuests) { quest ->
-                QuestItem(quest, firestore, auth)
+                val questUserId = quest["userIdString"] as? String
+                if (questUserId == auth.currentUser?.uid) {
+                    QuestItem(quest, firestore, auth)
+                } else {
+                    CoopQuestItem(quest, firestore, auth)
+                }
             }
         }
     }
@@ -179,6 +202,8 @@ fun QuestItem(quest: Map<String, Any>,
     val deadlineTimestamp = quest["deadlineTimestamp"] as? Long
     val questId = quest["questId"] as? String ?: "Unknown ID"
     val questStatus = quest["questStatusString"] as? String ?: "Unknown Status"
+    val progress = quest["progressString"] as? String ?: ""
+    val partyPendingInvitationArray = quest["partyPendingInvitationArray"] as? List<*>
 
     val currentQuantity = quest["currentQuantity"] as? Int ?: 0
     val totalQuantity = Regex("""Quantity task of (\d+),""").find(questDescription)?.groupValues?.get(1)?.toIntOrNull()
@@ -267,6 +292,44 @@ fun QuestItem(quest: Map<String, Any>,
                             tint = MaterialTheme.colorScheme.error
                         )
                     }
+                    if (partyPendingInvitationArray.isNullOrEmpty()) {
+                        IconButton(
+                            onClick = {
+                                val userId = auth.currentUser?.uid
+                                if (userId != null) {
+                                    // Step 1: Retrieve all users
+                                    firestore.collection("users")
+                                        .get()
+                                        .addOnSuccessListener { querySnapshot ->
+                                            val allUserIds = querySnapshot.documents.mapNotNull { it.id }
+
+                                            // Step 2: Filter out the current user
+                                            val otherUserIds = allUserIds.filter { it != userId }
+
+                                            // Step 3: Update the quest document
+                                            firestore.collection("questLog").document(questId)
+                                                .update("partyPendingInvitationArray", FieldValue.arrayUnion(*otherUserIds.toTypedArray()))
+                                                .addOnSuccessListener {
+                                                    Log.d("QuestItem", "All users (except current user) added to partyPendingInvitationArray.")
+                                                }
+                                                .addOnFailureListener { e ->
+                                                    Log.e("QuestItem", "Error adding users to partyPendingInvitationArray", e)
+                                                }
+                                        }
+                                        .addOnFailureListener { e ->
+                                            Log.e("QuestItem", "Error retrieving users", e)
+                                        }
+                                }
+                            },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.ArrowForward,
+                                contentDescription = "Join Party",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                     IconButton(
                         onClick = {
                             when (questType) {
@@ -341,6 +404,102 @@ fun QuestItem(quest: Map<String, Any>,
                     isTimerRunning = false
                     firestore.collection("questLog").document(questId)
                         .update("questStatusString", "Completed")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CoopQuestItem(
+    quest: Map<String, Any>,
+    firestore: FirebaseFirestore,
+    auth: FirebaseAuth
+) {
+    val questName = quest["questNameString"] as? String ?: "Unknown Quest"
+    val questDescription = quest["questDescriptionString"] as? String ?: "No Description"
+    val questId = quest["questId"] as? String ?: "Unknown ID"
+    val userId = quest["userIdString"] as? String ?: "Unknown User"
+    val questStatus = quest["questStatusString"] as? String ?: "Unknown Status"
+
+    var username by remember { mutableStateOf("Loading...") }
+
+    // Fetch the username from Firestore
+    LaunchedEffect(userId) {
+        firestore.collection("users").document(userId).get()
+            .addOnSuccessListener { document ->
+                username = document.getString("usernameString") ?: "Unknown User"
+            }
+            .addOnFailureListener {
+                username = "Error Loading User"
+            }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiary
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+                .height(150.dp) // Adjust height as needed
+        ) {
+            // Title on top
+            Text(
+                text = questName,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.align(Alignment.TopStart)
+            )
+
+            // Description in the middle
+            Text(
+                text = questDescription,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.align(Alignment.CenterStart)
+            )
+
+            // Creator username on the bottom right
+            Text(
+                text = "u/$username",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.align(Alignment.BottomEnd)
+            )
+
+            // Delete button on the right
+            if (questStatus != "Completed")
+            {
+                IconButton(
+                    onClick = {
+                        val currentUserId = auth.currentUser?.uid
+                        if (currentUserId != null) {
+                            firestore.collection("questLog").document(questId)
+                                .update(
+//                                mapOf(
+//                                    "partyIdArray" to FieldValue.arrayRemove(currentUserId), // Remove user from array
+//                                    "partyUsernameMap.$currentUserId" to FieldValue.delete() // Remove user from map
+//                                )
+                                    "partyIdArray", FieldValue.arrayRemove(currentUserId), // Remove user from array
+                                )
+                                .addOnSuccessListener {
+                                    Log.d("CoopQuestItem", "User removed from partyIdArray and partyUsernameMap.")
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e("CoopQuestItem", "Error removing user from partyIdArray and partyUsernameMap", e)
+                                }
+                        }
+                    },
+                    modifier = Modifier.size(48.dp).align(Alignment.CenterEnd)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
