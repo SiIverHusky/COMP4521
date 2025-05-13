@@ -314,6 +314,7 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context, curr
                                                 var userData = document.data
                                                 Log.d("ProfileFragment", "DocumentSnapshot data: ${document.data}")
                                                 username = document.getString("usernameString").toString()
+                                                saveLoginStatus(requireContext, true)
                                                 Log.d("ProfileFragment", "Saving to SharedPreference")
                                                 saveUsername(requireContext, username)
                                                 UserDataStore.username = document.getString("usernameString")
