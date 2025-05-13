@@ -468,26 +468,6 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
                         }
                     } else {
                         Log.d("NewQuestFragment", "Created Quest!")
-                    }
-                }
-
-                createQuest(
-                    questName = name,
-                    questDescription = description,
-                    type = selectedType,
-                    deadline = if (selectedType == "Deadline") deadline else null,
-                    duration = if (selectedType == "Duration") "${durationH}h ${durationM}m" else null,
-                    quantity = if (selectedType == "Quantity") quantity else null,
-                ).addOnCompleteListener { task ->
-                    if (!task.isSuccessful) {
-                        val e = task.exception
-                        if (e is FirebaseFunctionsException) {
-                            val code = e.code
-                            val details = e.details
-                            Log.d("NewQuestFragment", "Error $code: $details")
-                        }
-                    } else {
-                        Log.d("NewQuestFragment", "Created Quest!")
                         selectedType = "None"
                         name = ""
                         description = ""
