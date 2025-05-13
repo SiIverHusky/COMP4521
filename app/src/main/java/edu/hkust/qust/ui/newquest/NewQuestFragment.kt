@@ -237,8 +237,14 @@ private fun createQuest(
         "questDescriptionString" to questDescription
     ).apply {
         when (type) {
-            "Quantity" -> put("questDescriptionString", "Quantity task of $quantity, with description: $questDescription")
-            "Duration" -> put("questDescriptionString", "Duration task of $duration, with description: $questDescription")
+            "Quantity" -> {
+                put("questDescriptionString", "Quantity task of $quantity, with description: $questDescription")
+                put("progressString", "0 / $quantity")
+            }
+            "Duration" -> {
+                put("questDescriptionString", "Duration task of $duration, with description: $questDescription")
+                put("progressString", "$duration")
+            }
             "Deadline" -> {
                 put("deadlineTimestamp", convertStringToTimestamp(deadline.toString()) ?: 0L)
             }
@@ -479,12 +485,14 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
                 }
             },
             modifier = Modifier
-                .padding(PaddingValues(
-                    start = 16.dp,
-                    top = 16.dp,
-                    end = 16.dp,
-                    bottom = 64.dp // Specify a different bottom padding
-                ))
+                .padding(
+                    PaddingValues(
+                        start = 16.dp,
+                        top = 16.dp,
+                        end = 16.dp,
+                        bottom = 64.dp // Specify a different bottom padding
+                    )
+                )
                 .align(Alignment.BottomEnd)
         ) { Text("+") }
     }
