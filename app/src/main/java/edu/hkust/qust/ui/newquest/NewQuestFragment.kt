@@ -112,6 +112,7 @@ class NewQuestFragment : Fragment() {
         return ComposeView(requireContext()).apply {
             setContent {
                 if(isUserLoggedIn(requireContext())) {
+                    Log.d("NewQuestFragment", "Current User: ${Firebase.auth.currentUser?.toString()}")
                     NewTaskScreen(newQuestViewModel)
                 }else{
                     LoginPrompt()
@@ -487,6 +488,13 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
                         }
                     } else {
                         Log.d("NewQuestFragment", "Created Quest!")
+                        selectedType = "None"
+                        name = ""
+                        description = ""
+                        quantity = ""
+                        durationH = ""
+                        durationM = ""
+                        deadline = ""
                     }
                 }
             },
