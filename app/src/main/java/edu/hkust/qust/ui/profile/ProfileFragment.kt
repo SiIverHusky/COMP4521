@@ -32,6 +32,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
 import edu.hkust.qust.databinding.FragmentProfileBinding
@@ -49,6 +50,7 @@ class ProfileFragment : Fragment() {
     private val binding get() = _binding!!
 
     private lateinit var auth: FirebaseAuth
+    private lateinit var authStateListener: FirebaseAuth.AuthStateListener
 
 
 
@@ -59,58 +61,88 @@ class ProfileFragment : Fragment() {
     ): View {
         auth = Firebase.auth
 
+        // Initialize the AuthStateListener
+        authStateListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+            val currentUser = firebaseAuth.currentUser
+            if (currentUser == null) {
+                // User is logged out, update SharedPreferences
+                saveLoginStatus(requireContext(), false)
+                clearUserData()
+                Log.d("ProfileFragment", "User logged out")
+            } else {
+                // User is logged in, update SharedPreferences
+                saveLoginStatus(requireContext(), true)
+                Log.d("ProfileFragment", "User logged in: ${currentUser.email}")
+            }
+        }
+
         val profileViewModel =
             ViewModelProvider(this).get(ProfileViewModel::class.java)
 
         _binding = FragmentProfileBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
-        //val textView: TextView = binding.textDashboard
-        //dashboardViewModel.text.observe(viewLifecycleOwner) {
-        //    textView.text = it
-        //}
-        isUserLoggedIn(requireContext())
-        return ComposeView(requireContext()).apply {
-            setContent {
-                ProfileApp(profileViewModel, requireContext())
+        if (isUserLoggedIn(requireContext())) {
+            Log.d("ProfileFragment", "User is logged in")
+            val currentUser = FirebaseAuth.getInstance().currentUser
+            Log.d("ProfileFragment", "Current user: ${currentUser}")
+            return ComposeView(requireContext()).apply {
+                setContent {
+                    ProfileApp(profileViewModel, requireContext(), currentUser)
+                }
+            }
+        } else {
+            return ComposeView(requireContext()).apply {
+                setContent {
+                    ProfileApp(profileViewModel, requireContext())
+                }
             }
         }
-
         return root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        fetchUserData()
     }
 
-    private fun fetchUserData() {
-        val currentUser = auth.currentUser
-        if (currentUser != null) {
-            val db = Firebase.firestore
-            val uid = currentUser.uid
-            db.collection("users").document(uid).get()
-                .addOnSuccessListener { document ->
-                    if (document.exists()) {
-                        UserDataStore.username = document.getString("usernameString")
-                        UserDataStore.accountLevel = document.getLong("accountLevelNumber")?.toInt()
-                        UserDataStore.experiencePoints = document.getLong("experiencePointNumber")?.toInt()
-                        UserDataStore.health = document.getLong("healthNumber")?.toInt()
-                        UserDataStore.strength = document.getLong("strengthNumber")?.toInt()
-                        UserDataStore.intelligence = document.getLong("intelligenceNumber")?.toInt()
-                    }
-                }
-                .addOnFailureListener { exception ->
-                    Log.d("ProfileFragment", "Error getting document: ", exception)
-                }
-        }
+//    private fun fetchUserData() {
+//        val currentUser = auth.currentUser
+//        if (currentUser != null) {
+//            val db = Firebase.firestore
+//            val uid = currentUser.uid
+//            db.collection("users").document(uid).get()
+//                .addOnSuccessListener { document ->
+//                    if (document.exists()) {
+//                        UserDataStore.username = document.getString("usernameString")
+//                        UserDataStore.accountLevel = document.getLong("accountLevelNumber")?.toInt()
+//                        UserDataStore.experiencePoints = document.getLong("experiencePointNumber")?.toInt()
+//                        UserDataStore.health = document.getLong("healthNumber")?.toInt()
+//                        UserDataStore.strength = document.getLong("strengthNumber")?.toInt()
+//                        UserDataStore.intelligence = document.getLong("intelligenceNumber")?.toInt()
+//                    }
+//                }
+//                .addOnFailureListener { exception ->
+//                    Log.d("ProfileFragment", "Error getting document: ", exception)
+//                }
+//        }
+//    }
+
+    override fun onStart() {
+        super.onStart()
+        // Attach the AuthStateListener
+        auth.addAuthStateListener(authStateListener)
     }
 
+    override fun onStop() {
+        super.onStop()
+        // Detach the AuthStateListener to avoid memory leaks
+        auth.removeAuthStateListener(authStateListener)
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
-        Firebase.auth.signOut()
+//        Firebase.auth.signOut()
     }
 
 
@@ -149,7 +181,7 @@ fun getUsername(context: Context): String? {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
+fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context, currentUser: FirebaseUser? = null) {
     var isLoggedIn by remember { mutableStateOf(false) }
     var isSignUpMode by remember { mutableStateOf(false) }
 
@@ -166,31 +198,14 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
     isLoggedIn = isUserLoggedIn(requireContext)
 
     if (isLoggedIn) {
-//        if (UserDataStore.username == null)
-//        {
-//            val auth = Firebase.auth
-//            val db = Firebase.firestore
-//
-//            val userId = auth.currentUser?.uid
-//            if (userId != null) {
-//                db.collection("users").document(userId).get()
-//                    .addOnSuccessListener { document ->
-//                        if (document != null) {
-//                            UserDataStore.username = document.getString("username")
-//                            username = UserDataStore.username.toString()
-//                            UserDataStore.accountLevel = document.getLong("accountLevel")?.toInt()
-//                            UserDataStore.experiencePoints = document.getLong("experiencePoints")?.toInt()
-//                            UserDataStore.strength = document.getLong("strength")?.toInt()
-//                            UserDataStore.intelligence = document.getLong("intelligence")?.toInt()
-//                            UserDataStore.health = document.getLong("health")?.toInt()
-//                        }
-//                    }
-//            }
-//        } else {
-//            username = UserDataStore.username.toString()
-//        }
-        username = getUsername(requireContext).toString()
+        val db = Firebase.firestore
+        val uid = currentUser?.uid
+        db.collection("users").document(uid.toString()).get()
+            .addOnSuccessListener { document ->
+                username = document.getString("usernameString").toString()
+            }
     }
+
     Column(modifier = Modifier
         .fillMaxWidth()
         .padding(16.dp)){
@@ -284,6 +299,7 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                                 }else{
                                     isLoggedIn = true
 
+
                                     // Save logged-in state
                                     saveLoginStatus(requireContext, true)
                                     val user = auth.currentUser
@@ -298,6 +314,7 @@ fun ProfileApp(profileViewModel: ProfileViewModel, requireContext: Context){
                                                 var userData = document.data
                                                 Log.d("ProfileFragment", "DocumentSnapshot data: ${document.data}")
                                                 username = document.getString("usernameString").toString()
+                                                saveLoginStatus(requireContext, true)
                                                 Log.d("ProfileFragment", "Saving to SharedPreference")
                                                 saveUsername(requireContext, username)
                                                 UserDataStore.username = document.getString("usernameString")

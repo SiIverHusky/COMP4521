@@ -112,6 +112,7 @@ class NewQuestFragment : Fragment() {
         return ComposeView(requireContext()).apply {
             setContent {
                 if(isUserLoggedIn(requireContext())) {
+                    Log.d("NewQuestFragment", "Current User: ${Firebase.auth.currentUser?.toString()}")
                     NewTaskScreen(newQuestViewModel)
                 }else{
                     LoginPrompt()
@@ -236,8 +237,14 @@ private fun createQuest(
         "questDescriptionString" to questDescription
     ).apply {
         when (type) {
-            "Quantity" -> put("questDescriptionString", "Quantity task of $quantity, with description: $questDescription")
-            "Duration" -> put("questDescriptionString", "Duration task of $duration, with description: $questDescription")
+            "Quantity" -> {
+                put("questDescriptionString", "Quantity task of $quantity, with description: $questDescription")
+                put("progressString", "0 / $quantity")
+            }
+            "Duration" -> {
+                put("questDescriptionString", "Duration task of $duration, with description: $questDescription")
+                put("progressString", "$duration")
+            }
             "Deadline" -> {
                 put("deadlineTimestamp", convertStringToTimestamp(deadline.toString()) ?: 0L)
             }
@@ -467,36 +474,25 @@ fun NewTaskScreen(newQuestViewModel: NewQuestViewModel) {
                         }
                     } else {
                         Log.d("NewQuestFragment", "Created Quest!")
-                    }
-                }
-
-                createQuest(
-                    questName = name,
-                    questDescription = description,
-                    type = selectedType,
-                    deadline = if (selectedType == "Deadline") deadline else null,
-                    duration = if (selectedType == "Duration") "${durationH}h ${durationM}m" else null,
-                    quantity = if (selectedType == "Quantity") quantity else null,
-                ).addOnCompleteListener { task ->
-                    if (!task.isSuccessful) {
-                        val e = task.exception
-                        if (e is FirebaseFunctionsException) {
-                            val code = e.code
-                            val details = e.details
-                            Log.d("NewQuestFragment", "Error $code: $details")
-                        }
-                    } else {
-                        Log.d("NewQuestFragment", "Created Quest!")
+                        selectedType = "None"
+                        name = ""
+                        description = ""
+                        quantity = ""
+                        durationH = ""
+                        durationM = ""
+                        deadline = ""
                     }
                 }
             },
             modifier = Modifier
-                .padding(PaddingValues(
-                    start = 16.dp,
-                    top = 16.dp,
-                    end = 16.dp,
-                    bottom = 64.dp // Specify a different bottom padding
-                ))
+                .padding(
+                    PaddingValues(
+                        start = 16.dp,
+                        top = 16.dp,
+                        end = 16.dp,
+                        bottom = 64.dp // Specify a different bottom padding
+                    )
+                )
                 .align(Alignment.BottomEnd)
         ) { Text("+") }
     }
